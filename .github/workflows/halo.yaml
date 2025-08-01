@@ -1,20 +1,20 @@
 name: Halo Workflow
 
 on:
-  pull_request:
-    branches:
-      - main
-      - release-*
-    paths:
-      - "**"
-      - "!**.md"
-  push:
-    branches:
-      - main
-      - release-*
-    paths:
-      - "**"
-      - "!**.md"
+  # pull_request:
+  #   branches:
+  #     - main
+  #     - release-*
+  #   paths:
+  #     - "**"
+  #     - "!**.md"
+  # push:
+  #   branches:
+  #     - main
+  #     - release-*
+    # paths:
+    #   - "**"
+    #   - "!**.md"
   release:
     types:
       - published
