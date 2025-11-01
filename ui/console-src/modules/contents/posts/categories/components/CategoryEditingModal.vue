@@ -2,7 +2,6 @@
 import SubmitButton from "@/components/button/SubmitButton.vue";
 import AnnotationsForm from "@/components/form/AnnotationsForm.vue";
 import { setFocus } from "@/formkit/utils/focus";
-import { FormType } from "@/types/slug";
 import useSlugify from "@console/composables/use-slugify";
 import { useThemeCustomTemplates } from "@console/modules/interface/themes/composables/use-theme";
 import { reset, submitForm, type FormKitNode } from "@formkit/core";
@@ -15,6 +14,7 @@ import {
   VModal,
   VSpace,
 } from "@halo-dev/components";
+import { FormType } from "@halo-dev/console-shared";
 import { useQueryClient } from "@tanstack/vue-query";
 import { cloneDeep } from "lodash-es";
 import { computed, nextTick, onMounted, ref } from "vue";
@@ -353,6 +353,8 @@ async function slugUniqueValidation(node: FormKitNode) {
                 $t('core.post_category.editing_modal.fields.description.label')
               "
               type="textarea"
+              auto-height
+              :max-auto-height="200"
               validation="length:0,200"
             ></FormKit>
           </div>

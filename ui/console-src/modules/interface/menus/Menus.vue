@@ -1,5 +1,4 @@
 <script lang="ts" setup>
-import { usePermission } from "@/utils/permission";
 import type { Menu, MenuItem } from "@halo-dev/api-client";
 import { coreApiClient } from "@halo-dev/api-client";
 import {
@@ -20,6 +19,7 @@ import {
   VStatusDot,
   VTag,
 } from "@halo-dev/components";
+import { utils } from "@halo-dev/console-shared";
 import { Draggable } from "@he-tree/vue";
 import "@he-tree/vue/style/default.css";
 import { useQuery, useQueryClient } from "@tanstack/vue-query";
@@ -38,7 +38,6 @@ import {
 
 const { t } = useI18n();
 const queryClient = useQueryClient();
-const { currentUserHasPermission } = usePermission();
 
 const menuTreeItems = ref<MenuTreeItem[]>([] as MenuTreeItem[]);
 const selectedMenu = ref<Menu>();
@@ -252,7 +251,7 @@ function getMenuItemRefDisplayName(menuItem: MenuTreeItem) {
       <div class="w-96 flex-none">
         <MenuList v-model:selected-menu="selectedMenu" />
       </div>
-      <div class="flex-1">
+      <div class="min-w-0 flex-1 shrink">
         <VCard :body-class="['!p-0']">
           <template #header>
             <div class="block w-full bg-gray-50 px-4 py-3">
@@ -319,7 +318,7 @@ function getMenuItemRefDisplayName(menuItem: MenuTreeItem) {
                 <div
                   class="group relative flex w-full items-center justify-between px-4 py-3 hover:bg-gray-50"
                 >
-                  <div>
+                  <div class="min-w-0 flex-1 shrink">
                     <div
                       v-permission="['system:menus:manage']"
                       class="drag-element absolute inset-y-0 left-0 hidden w-3.5 cursor-move items-center bg-gray-100 transition-all hover:bg-gray-200 group-hover:flex"
@@ -348,7 +347,7 @@ function getMenuItemRefDisplayName(menuItem: MenuTreeItem) {
                       </a>
                     </div>
                   </div>
-                  <div class="flex items-center gap-6">
+                  <div class="flex flex-none items-center gap-6">
                     <VStatusDot
                       v-if="node.metadata.deletionTimestamp"
                       v-tooltip="$t('core.common.status.deleting')"
@@ -356,7 +355,7 @@ function getMenuItemRefDisplayName(menuItem: MenuTreeItem) {
                       animate
                     />
                     <VDropdown
-                      v-if="currentUserHasPermission(['system:menus:manage'])"
+                      v-if="utils.permission.has(['system:menus:manage'])"
                     >
                       <div
                         class="cursor-pointer rounded p-1 transition-all hover:text-blue-600 group-hover:bg-gray-200/60"

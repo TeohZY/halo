@@ -2,13 +2,15 @@ import { BlockActionSeparator } from "@/components";
 import MdiDeleteForeverOutline from "@/components/icon/MdiDeleteForeverOutline.vue";
 import ToolboxItem from "@/components/toolbox/ToolboxItem.vue";
 import { i18n } from "@/locales";
-import type { EditorState } from "@/tiptap/pm";
 import {
   isActive,
   mergeAttributes,
+  PluginKey,
   VueNodeViewRenderer,
   type Editor,
-} from "@/tiptap/vue-3";
+  type Range,
+} from "@/tiptap";
+import type { EditorState } from "@/tiptap/pm";
 import type { ExtensionOptions, NodeBubbleMenuType } from "@/types";
 import { deleteNode } from "@/utils";
 import type { ImageOptions } from "@tiptap/extension-image";
@@ -29,7 +31,9 @@ import BubbleItemVideoLink from "./BubbleItemImageLink.vue";
 import BubbleItemImageSize from "./BubbleItemImageSize.vue";
 import ImageView from "./ImageView.vue";
 
-const Image = TiptapImage.extend<ExtensionOptions & ImageOptions>({
+export const IMAGE_BUBBLE_MENU_KEY = new PluginKey("imageBubbleMenu");
+
+const Image = TiptapImage.extend<ExtensionOptions & Partial<ImageOptions>>({
   fakeSelection: true,
 
   inline() {
@@ -127,13 +131,34 @@ const Image = TiptapImage.extend<ExtensionOptions & ImageOptions>({
           },
         ];
       },
+      getCommandMenuItems() {
+        return {
+          priority: 95,
+          icon: markRaw(MdiFileImageBox),
+          title: "editor.extensions.commands_menu.image",
+          keywords: ["image", "tupian"],
+          command: ({ editor, range }: { editor: Editor; range: Range }) => {
+            editor
+              .chain()
+              .focus()
+              .deleteRange(range)
+              .insertContent([
+                { type: "image", attrs: { src: "" } },
+                { type: "paragraph", content: "" },
+              ])
+              .run();
+          },
+        };
+      },
       getBubbleMenu({ editor }: { editor: Editor }): NodeBubbleMenuType {
         return {
-          pluginKey: "imageBubbleMenu",
+          pluginKey: IMAGE_BUBBLE_MENU_KEY,
           shouldShow: ({ state }: { state: EditorState }): boolean => {
             return isActive(state, Image.name);
           },
-          defaultAnimation: false,
+          options: {
+            placement: "top-start",
+          },
           items: [
             {
               priority: 10,
@@ -230,34 +255,6 @@ const Image = TiptapImage.extend<ExtensionOptions & ImageOptions>({
               },
             },
           ],
-        };
-      },
-      getDraggable() {
-        return {
-          getRenderContainer({ dom, view }) {
-            let container = dom;
-            while (container && container.tagName !== "P") {
-              container = container.parentElement as HTMLElement;
-            }
-            if (container) {
-              container = container.firstElementChild
-                ?.firstElementChild as HTMLElement;
-            }
-            let node;
-            if (container.firstElementChild) {
-              const pos = view.posAtDOM(container.firstElementChild, 0);
-              const $pos = view.state.doc.resolve(pos);
-              node = $pos.node();
-            }
-
-            return {
-              node: node,
-              el: container as HTMLElement,
-              dragDomOffset: {
-                y: -5,
-              },
-            };
-          },
         };
       },
     };

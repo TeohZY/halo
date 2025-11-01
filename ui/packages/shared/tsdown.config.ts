@@ -1,10 +1,18 @@
+import { fileURLToPath, URL } from "node:url";
 import { defineConfig } from "tsdown";
-import { fileURLToPath, URL } from "url";
 
 export default defineConfig({
   entry: ["./src/index.ts"],
   format: ["esm", "iife"],
-  external: ["vue", "vue-router"],
+  external: ["vue", "vue-router", "pinia", "@halo-dev/api-client"],
+  outputOptions: {
+    globals: {
+      vue: "Vue",
+      "vue-router": "VueRouter",
+      pinia: "Pinia",
+      "@halo-dev/api-client": "HaloApiClient",
+    },
+  },
   platform: "browser",
   globalName: "HaloConsoleShared",
   tsconfig: "./tsconfig.app.json",

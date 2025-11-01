@@ -6,9 +6,7 @@ import { useContentCache } from "@/composables/use-content-cache";
 import { useEditorExtensionPoints } from "@/composables/use-editor-extension-points";
 import { useSessionKeepAlive } from "@/composables/use-session-keep-alive";
 import { contentAnnotations } from "@/constants/annotations";
-import { FormType } from "@/types/slug";
 import { randomUUID } from "@/utils/id";
-import { usePermission } from "@/utils/permission";
 import { useContentSnapshot } from "@console/composables/use-content-snapshot";
 import { useSaveKeybinding } from "@console/composables/use-save-keybinding";
 import useSlugify from "@console/composables/use-slugify";
@@ -31,9 +29,11 @@ import {
   VPageHeader,
 } from "@halo-dev/components";
 import type { EditorProvider } from "@halo-dev/console-shared";
+import { FormType, utils } from "@halo-dev/console-shared";
 import { useLocalStorage } from "@vueuse/core";
 import { useRouteQuery } from "@vueuse/router";
 import type { AxiosRequestConfig } from "axios";
+import { isEqual } from "lodash-es";
 import ShortUniqueId from "short-unique-id";
 import {
   computed,
@@ -41,6 +41,7 @@ import {
   onMounted,
   provide,
   ref,
+  shallowRef,
   toRef,
   watch,
   type ComputedRef,
@@ -55,11 +56,10 @@ const uid = new ShortUniqueId();
 const router = useRouter();
 const { t } = useI18n();
 const { mutateAsync: postUpdateMutate } = usePostUpdateMutate();
-const { currentUserHasPermission } = usePermission();
 
 // Editor providers
 const { editorProviders, fetchEditorProviders } = useEditorExtensionPoints();
-const currentEditorProvider = ref<EditorProvider>();
+const currentEditorProvider = shallowRef<EditorProvider>();
 const storedEditorProviderName = useLocalStorage("editor-provider-name", "");
 
 const handleChangeEditorProvider = async (provider: EditorProvider) => {
@@ -128,11 +128,14 @@ const settingModal = ref(false);
 const saving = ref(false);
 const publishing = ref(false);
 
-const isTitleChanged = ref(false);
+const needsUpdatePost = ref(false);
 watch(
-  () => formState.value.post.spec.title,
-  (newValue, oldValue) => {
-    isTitleChanged.value = newValue !== oldValue;
+  [
+    () => formState.value.post.spec.title,
+    () => formState.value.post.spec.cover,
+  ],
+  (value, oldValue) => {
+    needsUpdatePost.value = !isEqual(value, oldValue);
   }
 );
 
@@ -181,8 +184,7 @@ const handleSave = async (options?: { mute?: boolean }) => {
     }
 
     if (isUpdateMode.value) {
-      // Save post title
-      if (isTitleChanged.value) {
+      if (needsUpdatePost.value) {
         formState.value.post = (
           await postUpdateMutate(formState.value.post)
         ).data;
@@ -195,7 +197,7 @@ const handleSave = async (options?: { mute?: boolean }) => {
 
       formState.value.post = data;
 
-      isTitleChanged.value = false;
+      needsUpdatePost.value = false;
     } else {
       // Clear new post content cache
       handleClearCache();
@@ -246,7 +248,7 @@ const handlePublish = async () => {
       const { name: postName } = formState.value.post.metadata;
       const { permalink } = formState.value.post.status || {};
 
-      if (isTitleChanged.value) {
+      if (needsUpdatePost.value) {
         formState.value.post = (
           await postUpdateMutate(formState.value.post)
         ).data;
@@ -262,9 +264,15 @@ const handlePublish = async () => {
       });
 
       if (returnToView.value === "true" && permalink) {
+        handleClearCache(name.value);
         window.location.href = permalink;
-      } else {
+        return;
+      }
+
+      if (router.options.history.state.back === null) {
         router.push({ name: "Posts" });
+      } else {
+        router.back();
       }
     } else {
       const { data } = await consoleApiClient.content.post.draftPost({
@@ -360,26 +368,7 @@ const handleFetchContent = async () => {
 };
 
 const handleOpenSettingModal = async () => {
-  if (isTitleChanged.value) {
-    await coreApiClient.content.post.patchPost({
-      name: formState.value.post.metadata.name,
-      jsonPatchInner: [
-        {
-          op: "add",
-          path: "/spec/title",
-          value:
-            formState.value.post.spec.title || t("core.post_editor.untitled"),
-        },
-      ],
-    });
-    isTitleChanged.value = false;
-  }
-
-  const { data: latestPost } = await coreApiClient.content.post.getPost({
-    name: formState.value.post.metadata.name,
-  });
-  formState.value.post = latestPost;
-
+  await handleSave({ mute: true });
   settingModal.value = true;
 };
 
@@ -480,7 +469,7 @@ useSessionKeepAlive();
 
 // Upload image
 async function handleUploadImage(file: File, options?: AxiosRequestConfig) {
-  if (!currentUserHasPermission(["uc:attachments:manage"])) {
+  if (!utils.permission.has(["uc:attachments:manage"])) {
     return;
   }
 
@@ -583,6 +572,7 @@ async function handleUploadImage(file: File, options?: AxiosRequestConfig) {
       v-model:raw="formState.content.raw"
       v-model:content="formState.content.content"
       v-model:title="formState.post.spec.title"
+      v-model:cover="formState.post.spec.cover"
       :upload-image="handleUploadImage"
       class="h-full"
       @update="handleSetContentCache"

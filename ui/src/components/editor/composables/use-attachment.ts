@@ -1,10 +1,12 @@
-import { useGlobalInfoStore } from "@/stores/global-info";
 import { ucApiClient } from "@halo-dev/api-client";
 import { Toast } from "@halo-dev/components";
-import type { AttachmentLike } from "@halo-dev/console-shared";
+import {
+  stores,
+  type AttachmentLike,
+  type AttachmentSimple,
+} from "@halo-dev/console-shared";
 import { computed, ref, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
-import type { AttachmentAttr } from "../utils/attachment";
 
 interface useAttachmentSelectReturn {
   onAttachmentSelect: (attachments: AttachmentLike[]) => void;
@@ -33,9 +35,9 @@ export function useAttachmentSelect(): useAttachmentSelectReturn {
 
 export function useExternalAssetsTransfer(
   src: Ref<string | undefined>,
-  callback: (attachment: AttachmentAttr) => void
+  callback: (attachment: AttachmentSimple) => void
 ) {
-  const { globalInfo } = useGlobalInfoStore();
+  const { globalInfo } = stores.globalInfo();
   const { t } = useI18n();
 
   const isExternalAsset = computed(() => {
@@ -68,8 +70,8 @@ export function useExternalAssetsTransfer(
       });
 
     callback({
-      url: data.status?.permalink,
-      name: data.spec.displayName,
+      url: data.status?.permalink || "",
+      alt: data.spec.displayName,
     });
 
     Toast.success(t("core.common.toast.save_success"));

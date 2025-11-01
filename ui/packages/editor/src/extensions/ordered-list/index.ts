@@ -1,16 +1,15 @@
 import ToolbarItem from "@/components/toolbar/ToolbarItem.vue";
 import { i18n } from "@/locales";
-import type { Editor, Range } from "@/tiptap/vue-3";
+import type { Editor, Range } from "@/tiptap";
 import type { ExtensionOptions } from "@/types";
-import ExtensionListItem from "@tiptap/extension-list-item";
-import type { OrderedListOptions } from "@tiptap/extension-ordered-list";
-import TiptapOrderedList from "@tiptap/extension-ordered-list";
+import {
+  ListItem,
+  OrderedList as TiptapOrderedList,
+} from "@tiptap/extension-list";
 import { markRaw } from "vue";
 import MdiFormatListNumbered from "~icons/mdi/format-list-numbered";
 
-const OrderedList = TiptapOrderedList.extend<
-  ExtensionOptions & OrderedListOptions
->({
+const OrderedList = TiptapOrderedList.extend<ExtensionOptions>({
   addOptions() {
     return {
       ...this.parent?.(),
@@ -38,27 +37,10 @@ const OrderedList = TiptapOrderedList.extend<
           },
         };
       },
-      getDraggable() {
-        return {
-          getRenderContainer({ dom }) {
-            let container = dom;
-            while (container && !(container.tagName === "LI")) {
-              container = container.parentElement as HTMLElement;
-            }
-            return {
-              el: container,
-              dragDomOffset: {
-                x: -16,
-                y: -1,
-              },
-            };
-          },
-        };
-      },
     };
   },
   addExtensions() {
-    return [ExtensionListItem];
+    return [ListItem];
   },
 });
 

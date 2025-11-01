@@ -1,8 +1,6 @@
 <script lang="ts" setup>
 import EntityDropdownItems from "@/components/entity/EntityDropdownItems.vue";
 import HasPermission from "@/components/permission/HasPermission.vue";
-import { formatDatetime, relativeTimeTo } from "@/utils/date";
-import { usePermission } from "@/utils/permission";
 import { useOperationItemExtensionPoint } from "@console/composables/use-operation-extension-points";
 import type { ListedComment, ListedReply } from "@halo-dev/api-client";
 import { consoleApiClient, coreApiClient } from "@halo-dev/api-client";
@@ -23,9 +21,9 @@ import {
   VStatusDot,
   VTag,
 } from "@halo-dev/components";
-import type { OperationItem } from "@halo-dev/console-shared";
+import { utils, type OperationItem } from "@halo-dev/console-shared";
 import { useQuery, useQueryClient } from "@tanstack/vue-query";
-import { computed, markRaw, provide, ref, type Ref, toRefs } from "vue";
+import { computed, markRaw, provide, ref, toRefs, type Ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useCommentLastReadTimeMutate } from "../composables/use-comment-last-readtime-mutate";
 import { useContentProviderExtensionPoint } from "../composables/use-content-provider-extension-point";
@@ -35,7 +33,6 @@ import OwnerButton from "./OwnerButton.vue";
 import ReplyCreationModal from "./ReplyCreationModal.vue";
 import ReplyListItem from "./ReplyListItem.vue";
 
-const { currentUserHasPermission } = usePermission();
 const { t } = useI18n();
 const queryClient = useQueryClient();
 
@@ -276,9 +273,7 @@ const { data: contentProvider } = useContentProviderExtensionPoint();
   />
   <VEntity :is-selected="isSelected">
     <template
-      v-if="
-        currentUserHasPermission(['system:comments:manage']) && $slots.checkbox
-      "
+      v-if="utils.permission.has(['system:comments:manage']) && $slots.checkbox"
       #checkbox
     >
       <slot name="checkbox" />
@@ -368,12 +363,12 @@ const { data: contentProvider } = useContentProviderExtensionPoint();
         </template>
       </VEntityField>
       <VEntityField
-        v-tooltip="formatDatetime(creationTime)"
-        :description="relativeTimeTo(creationTime)"
+        v-tooltip="utils.date.format(creationTime)"
+        :description="utils.date.timeAgo(creationTime)"
       />
     </template>
     <template
-      v-if="currentUserHasPermission(['system:comments:manage'])"
+      v-if="utils.permission.has(['system:comments:manage'])"
       #dropdownItems
     >
       <EntityDropdownItems :dropdown-items="operationItems" :item="comment" />

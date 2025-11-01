@@ -2,17 +2,18 @@ import { BlockActionSeparator } from "@/components";
 import MdiDeleteForeverOutline from "@/components/icon/MdiDeleteForeverOutline.vue";
 import ToolboxItem from "@/components/toolbox/ToolboxItem.vue";
 import { i18n } from "@/locales";
-import type { EditorState } from "@/tiptap/pm";
 import {
   Editor,
   Node,
+  PluginKey,
   VueNodeViewRenderer,
   isActive,
   mergeAttributes,
   nodeInputRule,
   nodePasteRule,
   type Range,
-} from "@/tiptap/vue-3";
+} from "@/tiptap";
+import type { EditorState } from "@/tiptap/pm";
 import type { ExtensionOptions, NodeBubbleMenuType } from "@/types";
 import { deleteNode } from "@/utils";
 import { isAllowedUri } from "@/utils/is-allowed-uri";
@@ -41,6 +42,8 @@ declare module "@/tiptap" {
     };
   }
 }
+
+export const IFRAME_BUBBLE_MENU_KEY = new PluginKey("iframeBubbleMenu");
 
 const Iframe = Node.create<ExtensionOptions>({
   name: "iframe",
@@ -243,7 +246,7 @@ const Iframe = Node.create<ExtensionOptions>({
       getToolboxItems({ editor }: { editor: Editor }) {
         return [
           {
-            priority: 40,
+            priority: 50,
             component: markRaw(ToolboxItem),
             props: {
               editor,
@@ -262,7 +265,7 @@ const Iframe = Node.create<ExtensionOptions>({
       },
       getBubbleMenu({ editor }: { editor: Editor }): NodeBubbleMenuType {
         return {
-          pluginKey: "iframeBubbleMenu",
+          pluginKey: IFRAME_BUBBLE_MENU_KEY,
           shouldShow: ({ state }: { state: EditorState }) => {
             return isActive(state, Iframe.name);
           },
@@ -442,31 +445,6 @@ const Iframe = Node.create<ExtensionOptions>({
               },
             },
           ],
-        };
-      },
-      getDraggable() {
-        return {
-          getRenderContainer({ dom, view }) {
-            let container = dom;
-            while (container && container.tagName !== "P") {
-              container = container.parentElement as HTMLElement;
-            }
-            if (container) {
-              container = container.firstElementChild
-                ?.firstElementChild as HTMLElement;
-            }
-            let node;
-            if (container.firstElementChild) {
-              const pos = view.posAtDOM(container.firstElementChild, 0);
-              const $pos = view.state.doc.resolve(pos);
-              node = $pos.node();
-            }
-
-            return {
-              node: node,
-              el: container as HTMLElement,
-            };
-          },
         };
       },
     };

@@ -6,6 +6,7 @@ import {
   ExtensionBlockquote,
   ExtensionBold,
   ExtensionBulletList,
+  ExtensionCharacterCount,
   ExtensionClearFormat,
   ExtensionCode,
   ExtensionCodeBlock,
@@ -15,7 +16,6 @@ import {
   ExtensionCommands,
   ExtensionDetails,
   ExtensionDocument,
-  ExtensionDraggable,
   ExtensionDropcursor,
   ExtensionFontSize,
   ExtensionFormatBrush,
@@ -49,32 +49,41 @@ import {
   RichTextEditor,
   ToolbarItem,
   ToolboxItem,
+  VueEditor,
   type Extensions,
 } from "@halo-dev/richtext-editor";
 // ui custom extension
 import { i18n } from "@/locales";
 import { usePluginModuleStore } from "@/stores/plugin";
-import { formatDatetime } from "@/utils/date";
-import { usePermission } from "@/utils/permission";
-import type { Attachment } from "@halo-dev/api-client";
+import {
+  GetThumbnailByUriSizeEnum,
+  type Attachment,
+} from "@halo-dev/api-client";
 import {
   IconCalendar,
   IconCharacterRecognition,
+  IconExchange,
   IconFolder,
+  IconImageAddLine,
   IconLink,
   IconUserFollow,
+  Toast,
+  VButton,
+  VDropdown,
+  VDropdownItem,
+  VLoading,
   VTabItem,
   VTabs,
 } from "@halo-dev/components";
-import type { AttachmentLike } from "@halo-dev/console-shared";
-import ExtensionCharacterCount from "@tiptap/extension-character-count";
-import { useDebounceFn, useLocalStorage } from "@vueuse/core";
+import { utils, type AttachmentLike } from "@halo-dev/console-shared";
+import { useDebounceFn, useFileDialog, useLocalStorage } from "@vueuse/core";
 import type { AxiosRequestConfig } from "axios";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-vue";
 import {
   defineAsyncComponent,
   inject,
   markRaw,
+  nextTick,
   onBeforeUnmount,
   onMounted,
   ref,
@@ -90,6 +99,7 @@ import MdiFormatHeader4 from "~icons/mdi/format-header-4";
 import MdiFormatHeader5 from "~icons/mdi/format-header-5";
 import MdiFormatHeader6 from "~icons/mdi/format-header-6";
 import RiLayoutRightLine from "~icons/ri/layout-right-line";
+import HasPermission from "../permission/HasPermission.vue";
 import { useAttachmentSelect } from "./composables/use-attachment";
 import { useExtension } from "./composables/use-extension";
 import {
@@ -98,16 +108,16 @@ import {
   UiExtensionUpload,
   UiExtensionVideo,
 } from "./extensions";
-import { getContents } from "./utils/attachment";
+import { convertToMediaContents } from "./utils/attachment";
 
 const { t } = useI18n();
-const { currentUserHasPermission } = usePermission();
 
 const props = withDefaults(
   defineProps<{
     title?: string;
     raw?: string;
     content: string;
+    cover?: string;
     uploadImage?: (
       file: File,
       options?: AxiosRequestConfig
@@ -117,6 +127,7 @@ const props = withDefaults(
     title: "",
     raw: "",
     content: "",
+    cover: undefined,
     uploadImage: undefined,
   }
 );
@@ -126,6 +137,7 @@ const emit = defineEmits<{
   (event: "update:raw", value: string): void;
   (event: "update:content", value: string): void;
   (event: "update", value: string): void;
+  (event: "update:cover", value: string | undefined): void;
 }>();
 
 const owner = inject<ComputedRef<string | undefined>>("owner");
@@ -166,7 +178,7 @@ const headingNodes = ref<HeadingNode[]>();
 const selectedHeadingNode = ref<HeadingNode>();
 const extraActiveId = ref("toc");
 
-const editor = shallowRef<Editor>();
+const editor = shallowRef<VueEditor>();
 const editorTitleRef = ref();
 
 const { pluginModules } = usePluginModuleStore();
@@ -176,7 +188,7 @@ const showSidebar = useLocalStorage("halo:editor:show-sidebar", true);
 // Attachments
 const AttachmentSelectorModal = defineAsyncComponent({
   loader: () => {
-    if (currentUserHasPermission(["system:attachments:manage"])) {
+    if (utils.permission.has(["system:attachments:manage"])) {
       return import(
         "@console/modules/contents/attachments/components/AttachmentSelectorModal.vue"
       );
@@ -187,7 +199,7 @@ const AttachmentSelectorModal = defineAsyncComponent({
   },
 });
 
-const attachmentSelectorModal = ref(false);
+const attachmentSelectorModalVisible = ref(false);
 const { onAttachmentSelect, attachmentResult } = useAttachmentSelect();
 
 const initAttachmentOptions = {
@@ -202,8 +214,9 @@ const attachmentOptions = ref<{
   max?: number;
 }>(initAttachmentOptions);
 
-const handleCloseAttachmentSelectorModal = () => {
+const onAttachmentSelectorModalClose = () => {
   attachmentOptions.value = initAttachmentOptions;
+  attachmentSelectorModalVisible.value = false;
 };
 
 const { filterDuplicateExtensions } = useExtension();
@@ -289,7 +302,7 @@ const presetExtensions = [
     addOptions() {
       // If user has no permission to view attachments, return
       if (
-        !currentUserHasPermission([
+        !utils.permission.has([
           "system:attachments:manage",
           "uc:attachments:manage",
         ])
@@ -314,7 +327,7 @@ const presetExtensions = [
                     editor
                       .chain()
                       .focus()
-                      .insertContent(getContents(attachment))
+                      .insertContent(convertToMediaContents(attachment))
                       .run();
                   });
                   return true;
@@ -331,7 +344,7 @@ const presetExtensions = [
           if (options) {
             attachmentOptions.value = options;
           }
-          attachmentSelectorModal.value = true;
+          attachmentSelectorModalVisible.value = true;
           attachmentResult.updateAttachment = (
             attachments: AttachmentLike[]
           ) => {
@@ -366,7 +379,6 @@ const presetExtensions = [
       };
     },
   }),
-  ExtensionDraggable,
   ExtensionColumns,
   ExtensionColumn,
   ExtensionNodeSelected,
@@ -412,6 +424,8 @@ const presetExtensions = [
   }),
 ];
 
+const isInitialized = ref(false);
+
 onMounted(async () => {
   const extensionsFromPlugins: Extensions = [];
 
@@ -441,7 +455,7 @@ onMounted(async () => {
     ...extensionsFromPlugins,
   ]);
 
-  editor.value = new Editor({
+  editor.value = new VueEditor({
     content: props.raw,
     extensions,
     parseOptions: {
@@ -451,11 +465,14 @@ onMounted(async () => {
       debounceOnUpdate();
     },
     onCreate() {
-      if (editor.value?.isEmpty && !props.title) {
-        editorTitleRef.value.focus();
-      } else {
-        editor.value?.commands.focus();
-      }
+      isInitialized.value = true;
+      nextTick(() => {
+        if (editor.value?.isEmpty && !props.title) {
+          editorTitleRef.value.focus();
+        } else {
+          editor.value?.commands.focus();
+        }
+      });
     },
   });
 });
@@ -498,27 +515,191 @@ function handleFocusEditor(event) {
   }
   editor.value?.commands.focus("start");
 }
+
+// Cover
+const coverSelectorModalVisible = ref(false);
+
+function onCoverSelect(attachments: AttachmentLike[]) {
+  const attachment = attachments[0];
+  if (!attachment) {
+    return;
+  }
+  emit("update:cover", utils.attachment.getUrl(attachment));
+}
+
+const { onChange: onCoverInputChange, open: openCoverInputDialog } =
+  useFileDialog({
+    accept: "image/*", // Set to accept only image files
+    multiple: false,
+  });
+
+const uploadProgress = ref(0);
+
+onCoverInputChange((files) => {
+  const file = files?.[0];
+  if (!file) {
+    return;
+  }
+  props
+    .uploadImage?.(file, {
+      onUploadProgress: (progress) => {
+        uploadProgress.value = Math.round(
+          (progress.loaded * 100) / (progress.total || 1)
+        );
+      },
+    })
+    .then((attachment) => {
+      emit("update:cover", attachment.status?.permalink);
+    })
+    .catch((e: Error) => {
+      Toast.error(
+        t("core.components.default_editor.cover.toast.upload_failed", {
+          message: e.message,
+        })
+      );
+    })
+    .finally(() => {
+      uploadProgress.value = 0;
+    });
+});
 </script>
 
 <template>
-  <div>
+  <VLoading v-if="!isInitialized" />
+  <div v-else>
     <AttachmentSelectorModal
+      v-if="attachmentSelectorModalVisible"
       v-bind="attachmentOptions"
-      v-model:visible="attachmentSelectorModal"
       @select="onAttachmentSelect"
-      @close="handleCloseAttachmentSelectorModal"
+      @close="onAttachmentSelectorModalClose"
+    />
+    <!-- For cover image -->
+    <AttachmentSelectorModal
+      v-if="coverSelectorModalVisible"
+      :min="1"
+      :max="1"
+      :accepts="['image/*']"
+      @select="onCoverSelect"
+      @close="coverSelectorModalVisible = false"
     />
     <RichTextEditor v-if="editor" :editor="editor" :locale="currentLocale">
       <template #content>
-        <input
-          ref="editorTitleRef"
-          :value="title"
-          type="text"
-          :placeholder="$t('core.components.default_editor.title_placeholder')"
-          class="w-full border-x-0 !border-b border-t-0 !border-solid !border-gray-100 p-0 !py-2 text-4xl font-semibold leading-none placeholder:text-gray-300"
-          @input="onTitleInput"
-          @keydown.enter="handleFocusEditor"
-        />
+        <div class="group">
+          <div
+            v-if="cover || uploadProgress"
+            class="group/cover aspect-h-7 aspect-w-16 overflow-hidden rounded-lg"
+          >
+            <img
+              v-if="cover"
+              :src="
+                utils.attachment.getThumbnailUrl(
+                  cover,
+                  GetThumbnailByUriSizeEnum.Xl
+                )
+              "
+              class="size-full object-cover"
+            />
+            <div
+              v-if="uploadProgress"
+              class="flex flex-col items-center justify-center bg-black/50 text-white"
+            >
+              <VLoading class="!py-3" />
+              <span class="text-sm">{{ uploadProgress }}%</span>
+            </div>
+            <HasPermission
+              :permissions="[
+                'system:attachments:view',
+                'uc:attachments:manage',
+              ]"
+            >
+              <div
+                class="!bottom-2 !left-auto !right-2 !top-auto !size-auto opacity-0 shadow-lg transition-opacity group-hover/cover:opacity-100"
+              >
+                <VDropdown>
+                  <VButton type="secondary" size="sm">
+                    <template #icon>
+                      <IconExchange />
+                    </template>
+                    {{
+                      $t("core.components.default_editor.cover.options.change")
+                    }}
+                  </VButton>
+                  <template #popper>
+                    <HasPermission :permissions="['uc:attachments:manage']">
+                      <VDropdownItem @click="openCoverInputDialog()">
+                        {{
+                          $t(
+                            "core.components.default_editor.cover.options.upload"
+                          )
+                        }}
+                      </VDropdownItem>
+                    </HasPermission>
+                    <VDropdownItem @click="coverSelectorModalVisible = true">
+                      {{
+                        $t(
+                          "core.components.default_editor.cover.options.attachment"
+                        )
+                      }}
+                    </VDropdownItem>
+                    <VDropdownItem @click="emit('update:cover', undefined)">
+                      {{ $t("core.common.buttons.delete") }}
+                    </VDropdownItem>
+                  </template>
+                </VDropdown>
+              </div>
+            </HasPermission>
+          </div>
+          <HasPermission
+            :permissions="['system:attachments:view', 'uc:attachments:manage']"
+          >
+            <div
+              class="mt-2 opacity-0"
+              :class="{
+                'group-hover:opacity-100': !cover,
+                'pointer-events-none': cover,
+              }"
+            >
+              <VDropdown class="!inline-flex">
+                <VButton size="xs">
+                  <template #icon>
+                    <IconImageAddLine />
+                  </template>
+                  {{ $t("core.components.default_editor.cover.options.add") }}
+                </VButton>
+                <template #popper>
+                  <HasPermission :permissions="['uc:attachments:manage']">
+                    <VDropdownItem @click="openCoverInputDialog()">
+                      {{
+                        $t(
+                          "core.components.default_editor.cover.options.upload"
+                        )
+                      }}
+                    </VDropdownItem>
+                  </HasPermission>
+                  <VDropdownItem @click="coverSelectorModalVisible = true">
+                    {{
+                      $t(
+                        "core.components.default_editor.cover.options.attachment"
+                      )
+                    }}
+                  </VDropdownItem>
+                </template>
+              </VDropdown>
+            </div>
+          </HasPermission>
+          <input
+            ref="editorTitleRef"
+            :value="title"
+            type="text"
+            :placeholder="
+              $t('core.components.default_editor.title_placeholder')
+            "
+            class="w-full border-x-0 !border-b border-t-0 !border-solid !border-gray-100 p-0 !py-2 text-4xl font-semibold leading-none placeholder:text-gray-300"
+            @input="onTitleInput"
+            @keydown.enter="handleFocusEditor"
+          />
+          <slot name="content" />
+        </div>
       </template>
       <template v-if="showSidebar" #extra>
         <OverlayScrollbarsComponent
@@ -645,7 +826,7 @@ function handleFocusEditor(event) {
                     </div>
                     <div class="text-base font-medium text-gray-900">
                       {{
-                        formatDatetime(publishTime) ||
+                        utils.date.format(publishTime) ||
                         $t(
                           "core.components.default_editor.tabs.detail.fields.draft"
                         )

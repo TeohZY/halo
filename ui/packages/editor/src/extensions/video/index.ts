@@ -2,16 +2,17 @@ import { BlockActionSeparator } from "@/components";
 import MdiDeleteForeverOutline from "@/components/icon/MdiDeleteForeverOutline.vue";
 import ToolboxItem from "@/components/toolbox/ToolboxItem.vue";
 import { i18n } from "@/locales";
-import type { EditorState } from "@/tiptap/pm";
 import {
   Editor,
   Node,
+  PluginKey,
   VueNodeViewRenderer,
   isActive,
   mergeAttributes,
   nodeInputRule,
   type Range,
-} from "@/tiptap/vue-3";
+} from "@/tiptap";
+import type { EditorState } from "@/tiptap/pm";
 import type { ExtensionOptions, NodeBubbleMenuType } from "@/types";
 import { deleteNode } from "@/utils";
 import { markRaw } from "vue";
@@ -41,6 +42,8 @@ declare module "@/tiptap" {
     };
   }
 }
+
+export const VIDEO_BUBBLE_MENU_KEY = new PluginKey("videoBubbleMenu");
 
 const Video = Node.create<ExtensionOptions>({
   name: "video",
@@ -217,7 +220,7 @@ const Video = Node.create<ExtensionOptions>({
       },
       getBubbleMenu({ editor }: { editor: Editor }): NodeBubbleMenuType {
         return {
-          pluginKey: "videoBubbleMenu",
+          pluginKey: VIDEO_BUBBLE_MENU_KEY,
           shouldShow: ({ state }: { state: EditorState }) => {
             return isActive(state, Video.name);
           },
@@ -419,31 +422,6 @@ const Video = Node.create<ExtensionOptions>({
               },
             },
           ],
-        };
-      },
-      getDraggable() {
-        return {
-          getRenderContainer({ dom, view }) {
-            let container = dom;
-            while (container && container.tagName !== "P") {
-              container = container.parentElement as HTMLElement;
-            }
-            if (container) {
-              container = container.firstElementChild
-                ?.firstElementChild as HTMLElement;
-            }
-            let node;
-            if (container.firstElementChild) {
-              const pos = view.posAtDOM(container.firstElementChild, 0);
-              const $pos = view.state.doc.resolve(pos);
-              node = $pos.node();
-            }
-
-            return {
-              node: node,
-              el: container,
-            };
-          },
         };
       },
     };

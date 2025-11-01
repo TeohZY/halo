@@ -1,8 +1,6 @@
 <script lang="ts" setup>
 import AnnotationsForm from "@/components/form/AnnotationsForm.vue";
 import { singlePageLabels } from "@/constants/labels";
-import { FormType } from "@/types/slug";
-import { toDatetimeLocal, toISOString } from "@/utils/date";
 import { randomUUID } from "@/utils/id";
 import useSlugify from "@console/composables/use-slugify";
 import { useThemeCustomTemplates } from "@console/modules/interface/themes/composables/use-theme";
@@ -16,6 +14,7 @@ import {
   VModal,
   VSpace,
 } from "@halo-dev/components";
+import { FormType, utils } from "@halo-dev/console-shared";
 import { cloneDeep } from "lodash-es";
 import { computed, nextTick, ref, watch } from "vue";
 import { useI18n } from "vue-i18n";
@@ -234,7 +233,9 @@ watch(
   (value) => {
     if (value) {
       formState.value = cloneDeep(value);
-      publishTime.value = toDatetimeLocal(formState.value.spec.publishTime);
+      publishTime.value = utils.date.toDatetimeLocal(
+        formState.value.spec.publishTime
+      );
     }
   },
   {
@@ -245,7 +246,9 @@ watch(
 watch(
   () => publishTime.value,
   (value) => {
-    formState.value.spec.publishTime = value ? toISOString(value) : undefined;
+    formState.value.spec.publishTime = value
+      ? utils.date.toISOString(value)
+      : undefined;
   }
 );
 
@@ -370,7 +373,8 @@ async function slugUniqueValidation(node: FormKitNode) {
               :label="$t('core.page.settings.fields.raw_excerpt.label')"
               type="textarea"
               validation="length:0,1024"
-              :rows="5"
+              auto-height
+              :max-auto-height="200"
             ></FormKit>
           </div>
         </div>

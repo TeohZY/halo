@@ -1,12 +1,11 @@
 import Vue from "@vitejs/plugin-vue";
 import VueJsx from "@vitejs/plugin-vue-jsx";
-import fs from "fs";
-import path from "path";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import GzipPlugin from "rollup-plugin-gzip";
 import Icons from "unplugin-icons/vite";
-import { fileURLToPath } from "url";
 import { defineConfig, type Plugin } from "vite";
-import { VitePWA } from "vite-plugin-pwa";
 import { setupLibraryExternal } from "./library-external";
 
 interface Options {
@@ -34,15 +33,6 @@ export const sharedPlugins = [
       },
     },
   }),
-  VitePWA({
-    manifest: {
-      name: "Halo",
-      short_name: "Halo",
-      description: "Web Client For Halo",
-      theme_color: "#fff",
-    },
-    disable: true,
-  }),
 ];
 
 export function createViteConfig(options: Options) {
@@ -56,7 +46,7 @@ export function createViteConfig(options: Options) {
   return defineConfig({
     base,
     experimental: {
-      enableNativePlugin: isProduction,
+      enableNativePlugin: true,
     },
     plugins: [
       ...sharedPlugins,

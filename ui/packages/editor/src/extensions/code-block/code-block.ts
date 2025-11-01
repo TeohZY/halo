@@ -3,21 +3,23 @@ import ToolbarItem from "@/components/toolbar/ToolbarItem.vue";
 import ToolboxItem from "@/components/toolbox/ToolboxItem.vue";
 import { i18n } from "@/locales";
 import {
+  Editor,
+  VueNodeViewRenderer,
+  findParentNode,
+  isActive,
+  isNodeActive,
+  posToDOMRect,
+  type CommandProps,
+  type Range,
+} from "@/tiptap";
+import {
   EditorState,
   Plugin,
   PluginKey,
   TextSelection,
   type Transaction,
 } from "@/tiptap/pm";
-import {
-  Editor,
-  VueNodeViewRenderer,
-  findParentNode,
-  isActive,
-  isNodeActive,
-  type CommandProps,
-  type Range,
-} from "@/tiptap/vue-3";
+import type { ExtensionOptions } from "@/types";
 import { deleteNode } from "@/utils";
 import TiptapCodeBlock from "@tiptap/extension-code-block";
 import { markRaw } from "vue";
@@ -72,22 +74,6 @@ const updateIndent = (tr: Transaction, type: IndentType): Transaction => {
   });
 
   return tr;
-};
-
-const getRenderContainer = (node: HTMLElement) => {
-  let container = node;
-  // 文本节点
-  if (container.nodeName === "#text") {
-    container = node.parentElement as HTMLElement;
-  }
-  while (
-    container &&
-    container.classList &&
-    !container.classList.contains("code-node")
-  ) {
-    container = container.parentElement as HTMLElement;
-  }
-  return container;
 };
 
 export interface Option {
@@ -156,7 +142,13 @@ export interface ExtensionCodeBlockOptions extends CodeBlockOptions {
       }>);
 }
 
-export default TiptapCodeBlock.extend<ExtensionCodeBlockOptions>({
+export const CODE_BLOCK_BUBBLE_MENU_KEY = new PluginKey("codeBlockBubbleMenu");
+
+export const CodeBlockExtension = TiptapCodeBlock.extend<
+  ExtensionOptions &
+    Partial<ExtensionCodeBlockOptions> &
+    Partial<CodeBlockOptions>
+>({
   allowGapCursor: true,
   // It needs to have a higher priority than range-selection,
   // otherwise the Mod-a shortcut key will be overridden.
@@ -323,7 +315,7 @@ export default TiptapCodeBlock.extend<ExtensionCodeBlockOptions>({
       getToolboxItems({ editor }: { editor: Editor }) {
         return [
           {
-            priority: 50,
+            priority: 60,
             component: markRaw(ToolboxItem),
             props: {
               editor,
@@ -338,12 +330,33 @@ export default TiptapCodeBlock.extend<ExtensionCodeBlockOptions>({
       },
       getBubbleMenu() {
         return {
-          pluginKey: "codeBlockBubbleMenu",
-          shouldShow: ({ state }: { state: EditorState }) => {
+          pluginKey: CODE_BLOCK_BUBBLE_MENU_KEY,
+          shouldShow: ({ state }: { state: EditorState }): boolean => {
             return isActive(state, TiptapCodeBlock.name);
           },
-          getRenderContainer: (node: HTMLElement) => {
-            return getRenderContainer(node);
+          options: {
+            placement: "top-start",
+          },
+          getReferencedVirtualElement() {
+            const editor = this.editor;
+            if (!editor) {
+              return null;
+            }
+            const parentNode = findParentNode(
+              (node) => node.type.name === CodeBlockExtension.name
+            )(editor.state.selection);
+            if (parentNode) {
+              const domRect = posToDOMRect(
+                editor.view,
+                parentNode.pos,
+                parentNode.pos + parentNode.node.nodeSize
+              );
+              return {
+                getBoundingClientRect: () => domRect,
+                getClientRects: () => [domRect],
+              };
+            }
+            return null;
           },
           items: [
             {
@@ -356,15 +369,6 @@ export default TiptapCodeBlock.extend<ExtensionCodeBlockOptions>({
               },
             },
           ],
-        };
-      },
-      getDraggable() {
-        return {
-          getRenderContainer({ dom }: { dom: HTMLElement }) {
-            return {
-              el: getRenderContainer(dom),
-            };
-          },
         };
       },
     };
@@ -436,3 +440,5 @@ export default TiptapCodeBlock.extend<ExtensionCodeBlockOptions>({
     ];
   },
 });
+
+export default CodeBlockExtension;

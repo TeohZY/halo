@@ -631,7 +631,6 @@ core:
         ungrouped: Ungrouped
     actions:
       storage_policies: Storage Policies
-      thumbnails: Thumbnails
     empty:
       title: There are no attachments in the current group.
       message: >-
@@ -688,11 +687,13 @@ core:
         creation_time: Creation time
         permalink: Permalink
         thumbnails: Thumbnails
+      display_name_form:
+        help: Custom attachment name, only for display in the management interface, does not affect the file name and access link itself
       preview:
-        click_to_exit: Click to exit preview
         video_not_support: The current browser does not support video playback.
         audio_not_support: The current browser does not support audio playback.
         not_support: This file does not support preview.
+        not_support_thumbnail: This image does not support generating thumbnails.
     permalink_list:
       relative: Relative path
       absolute: Absolute path
@@ -750,6 +751,18 @@ core:
       fields:
         display_name:
           label: Display name
+        config:
+          label: Policy configuration
+        hidden:
+          label: Hide on upload screen
+          help: >-
+            If enabled, this storage policy will not be visible on the upload
+            screen
+        priority:
+          label: Display priority on upload screen
+          help: >-
+            Set the display priority on the upload screen. The higher the
+            number, the closer it appears to the top of the list
       toast:
         policy_name_exists: Storage policy name already exists
     upload_modal:
@@ -780,23 +793,6 @@ core:
       operations:
         select:
           result: ({count} items selected)
-    thumbnails_modal:
-      title: Thumbnail records
-      empty:
-        title: No thumbnail records
-        message: >-
-          There are currently no thumbnail records, thumbnails will be
-          automatically generated after uploading image attachments.
-      operations:
-        retry_all_failed:
-          button: Retry all failed records
-          tips_empty: No failed thumbnail records
-          tips_success: All failed records retried successfully
-    thumbnails:
-      phase:
-        pending: Pending
-        succeeded: Succeeded
-        failed: Failed
   uc_attachment:
     empty:
       title: There are no attachments.
@@ -1013,6 +1009,9 @@ core:
     title: Plugins
     tabs:
       detail: Detail
+    list:
+      fields:
+        system_reserved: System Reserved
     empty:
       title: There are no installed plugins currently.
       message: >-
@@ -1571,8 +1570,8 @@ core:
     fields:
       external_url: External url
       start_time: Start time
-      timezone: System Timezone
-      locale: System Locale
+      timezone: Operating system Timezone
+      locale: Operating system Locale
       version: Version
       build_time: Build time
       database: Database
@@ -1814,6 +1813,14 @@ core:
         attachment: Attachment
         show_hide_sidebar: Show/Hide Sidebar
       title_placeholder: Please enter the title
+      cover:
+        options:
+          add: Add Cover
+          change: Change Cover
+          upload: Upload
+          attachment: Select from attachment library
+        toast:
+          upload_failed: "Failed to upload cover image: {message}"
     global_search:
       placeholder: Enter keywords to search
       no_results: No search results

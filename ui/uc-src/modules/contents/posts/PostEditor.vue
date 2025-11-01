@@ -6,9 +6,7 @@ import { useContentCache } from "@/composables/use-content-cache";
 import { useEditorExtensionPoints } from "@/composables/use-editor-extension-points";
 import { useSessionKeepAlive } from "@/composables/use-session-keep-alive";
 import { contentAnnotations } from "@/constants/annotations";
-import { FormType } from "@/types/slug";
 import { randomUUID } from "@/utils/id";
-import { usePermission } from "@/utils/permission";
 import { useSaveKeybinding } from "@console/composables/use-save-keybinding";
 import useSlugify from "@console/composables/use-slugify";
 import type { Content, Post, Snapshot } from "@halo-dev/api-client";
@@ -24,14 +22,25 @@ import {
   VPageHeader,
 } from "@halo-dev/components";
 import type { EditorProvider } from "@halo-dev/console-shared";
+import { FormType, utils } from "@halo-dev/console-shared";
 import { useMutation } from "@tanstack/vue-query";
 import { usePostUpdateMutate } from "@uc/modules/contents/posts/composables/use-post-update-mutate";
 import { useLocalStorage } from "@vueuse/core";
 import { useRouteQuery } from "@vueuse/router";
 import { AxiosError, type AxiosRequestConfig } from "axios";
+import { isEqual } from "lodash-es";
 import ShortUniqueId from "short-unique-id";
 import type { ComputedRef } from "vue";
-import { computed, nextTick, onMounted, provide, ref, toRef, watch } from "vue";
+import {
+  computed,
+  nextTick,
+  onMounted,
+  provide,
+  ref,
+  shallowRef,
+  toRef,
+  watch,
+} from "vue";
 import { useI18n } from "vue-i18n";
 import { useRouter } from "vue-router";
 import PostCreationModal from "./components/PostCreationModal.vue";
@@ -41,7 +50,6 @@ const uid = new ShortUniqueId();
 
 const router = useRouter();
 const { t } = useI18n();
-const { currentUserHasPermission } = usePermission();
 
 const formState = ref<Post>({
   apiVersion: "content.halo.run/v1alpha1",
@@ -83,11 +91,11 @@ const content = ref<Content>({
 });
 const snapshot = ref<Snapshot>();
 
-const isTitleChanged = ref(false);
+const needsUpdatePost = ref(false);
 watch(
-  () => formState.value.spec.title,
-  (newValue, oldValue) => {
-    isTitleChanged.value = newValue !== oldValue;
+  [() => formState.value.spec.title, () => formState.value.spec.cover],
+  (value, oldValue) => {
+    needsUpdatePost.value = !isEqual(value, oldValue);
   }
 );
 
@@ -111,7 +119,7 @@ provide<ComputedRef<string | undefined>>(
 
 // Editor providers
 const { editorProviders, fetchEditorProviders } = useEditorExtensionPoints();
-const currentEditorProvider = ref<EditorProvider>();
+const currentEditorProvider = shallowRef<EditorProvider>();
 const storedEditorProviderName = useLocalStorage("editor-provider-name", "");
 
 const handleChangeEditorProvider = async (provider: EditorProvider) => {
@@ -347,13 +355,13 @@ const { mutateAsync: handleSave, isLoading: isSaving } = useMutation({
   },
   mutationFn: async () => {
     // Update title
-    if (isTitleChanged.value) {
+    if (needsUpdatePost.value) {
       const { data: updatedPost } = await postUpdateMutate({
         postToUpdate: formState.value,
       });
 
       formState.value = updatedPost;
-      isTitleChanged.value = false;
+      needsUpdatePost.value = false;
     }
 
     // Snapshot always exists in update mode
@@ -460,7 +468,7 @@ function onUpdatePostSuccess(data: Post) {
 
 // Upload image
 async function handleUploadImage(file: File, options?: AxiosRequestConfig) {
-  if (!currentUserHasPermission(["uc:attachments:manage"])) {
+  if (!utils.permission.has(["uc:attachments:manage"])) {
     return;
   }
 
@@ -534,6 +542,7 @@ useSessionKeepAlive();
       v-model:raw="content.raw"
       v-model:content="content.content"
       v-model:title="formState.spec.title"
+      v-model:cover="formState.spec.cover"
       :upload-image="handleUploadImage"
       class="h-full"
       @update="handleSetContentCache"

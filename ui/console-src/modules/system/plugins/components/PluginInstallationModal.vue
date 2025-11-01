@@ -1,9 +1,8 @@
 <script lang="ts" setup>
 import { usePluginModuleStore } from "@/stores/plugin";
-import { usePermission } from "@/utils/permission";
 import type { Plugin } from "@halo-dev/api-client";
 import { VButton, VModal, VTabbar } from "@halo-dev/components";
-import type { PluginInstallationTab } from "@halo-dev/console-shared";
+import { utils, type PluginInstallationTab } from "@halo-dev/console-shared";
 import { useRouteQuery } from "@vueuse/router";
 import {
   computed,
@@ -12,6 +11,7 @@ import {
   onMounted,
   provide,
   ref,
+  shallowRef,
   toRefs,
   type Ref,
 } from "vue";
@@ -20,7 +20,6 @@ import LocalUpload from "./installation-tabs/LocalUpload.vue";
 import RemoteDownload from "./installation-tabs/RemoteDownload.vue";
 
 const { t } = useI18n();
-const { currentUserHasPermission } = usePermission();
 
 const props = withDefaults(
   defineProps<{
@@ -40,7 +39,7 @@ provide<Ref<Plugin | undefined>>("pluginToUpgrade", pluginToUpgrade);
 
 const modal = ref<InstanceType<typeof VModal> | null>(null);
 
-const tabs = ref<PluginInstallationTab[]>([
+const tabs = shallowRef<PluginInstallationTab[]>([
   {
     id: "local",
     label: t("core.plugin.upload_modal.tabs.local"),
@@ -94,7 +93,7 @@ onMounted(async () => {
 
       tabs.value.push(
         ...items.filter((item) => {
-          return currentUserHasPermission(item.permissions);
+          return utils.permission.has(item.permissions || []);
         })
       );
     } catch (error) {
