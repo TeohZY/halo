@@ -1768,6 +1768,8 @@ core:
       option_size: 大小
       option_color: 颜色
       copyright: 图标数据来自 {url}
+      operations:
+        edit: 手动编辑图标
     array:
       empty_text: 没有条目
       image_tooltip: 查看图片：{value}
@@ -1820,6 +1822,8 @@ core:
       enable: 启用
       continue: 继续
       retry: 重试
+      unfold: 展开
+      fold: 收起
     radio:
       "yes": 是
       "no": 否
