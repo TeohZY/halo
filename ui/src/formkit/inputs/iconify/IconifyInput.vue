@@ -131,7 +131,13 @@ function onEditFormSubmit({ value: iconValue }: { value: string }) {
       </template>
     </VDropdown>
     <div class="inline-flex items-center gap-1.5">
-      <VDropdown ref="editFormDropdown" class="inline-flex">
+      <!-- @vue-ignore -->
+      <VDropdown
+        ref="editFormDropdown"
+        class="inline-flex"
+        :dispose-timeout="null"
+        :auto-hide="false"
+      >
         <template #default="{ shown }">
           <button
             v-tooltip="$t('core.formkit.iconify.operations.edit')"
@@ -162,7 +168,7 @@ function onEditFormSubmit({ value: iconValue }: { value: string }) {
               />
               <FormKit
                 v-else-if="['dataurl', 'url'].includes(format)"
-                type="attachment"
+                type="attachmentInput"
                 name="value"
                 :model-value="currentIconifyValue?.value"
               ></FormKit>
