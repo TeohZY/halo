@@ -199,6 +199,8 @@ async function slugUniqueValidation(node: FormKitNode) {
   const { data: categoriesWithSameSlug } =
     await coreApiClient.content.category.listCategory({
       fieldSelector,
+      page: 1,
+      size: 1,
     });
 
   return !categoriesWithSameSlug.total;
@@ -245,7 +247,7 @@ async function slugUniqueValidation(node: FormKitNode) {
                 $t('core.post_category.editing_modal.fields.display_name.label')
               "
               type="text"
-              validation="required|length:0,50"
+              validation="required|length:0,512"
             ></FormKit>
             <FormKit
               v-model="formState.spec.slug"
@@ -253,7 +255,7 @@ async function slugUniqueValidation(node: FormKitNode) {
               name="slug"
               :label="$t('core.post_category.editing_modal.fields.slug.label')"
               type="text"
-              validation="required|length:0,50|slugUniqueValidation"
+              validation="required|length:0,512|slugUniqueValidation"
               :validation-rules="{ slugUniqueValidation }"
               :validation-messages="{
                 slugUniqueValidation: $t(

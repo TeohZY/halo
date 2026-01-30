@@ -286,6 +286,8 @@ async function slugUniqueValidation(node: FormKitNode) {
   const { data: pagesWithSameSlug } =
     await coreApiClient.content.singlePage.listSinglePage({
       fieldSelector,
+      page: 1,
+      size: 1,
     });
 
   return !pagesWithSameSlug.total;
@@ -326,14 +328,14 @@ async function slugUniqueValidation(node: FormKitNode) {
               :label="$t('core.page.settings.fields.title.label')"
               type="text"
               name="title"
-              validation="required|length:0,100"
+              validation="required|length:0,1024"
             ></FormKit>
             <FormKit
               v-model="formState.spec.slug"
               :label="$t('core.page.settings.fields.slug.label')"
               name="slug"
               type="text"
-              validation="required|length:0,100|slugUniqueValidation"
+              validation="required|length:0,1024|slugUniqueValidation"
               :validation-rules="{ slugUniqueValidation }"
               :validation-messages="{
                 slugUniqueValidation: $t(

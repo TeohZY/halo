@@ -41,7 +41,6 @@ const formState = ref<Tag>({
   spec: {
     displayName: "",
     slug: "",
-    color: "#ffffff",
     cover: "",
   },
   apiVersion: "content.halo.run/v1alpha1",
@@ -162,6 +161,8 @@ async function slugUniqueValidation(node: FormKitNode) {
 
   const { data: tagsWithSameSlug } = await coreApiClient.content.tag.listTag({
     fieldSelector,
+    page: 1,
+    size: 1,
   });
 
   return !tagsWithSameSlug.total;

@@ -10,11 +10,7 @@ import { useContentSnapshot } from "@console/composables/use-content-snapshot";
 import { useSaveKeybinding } from "@console/composables/use-save-keybinding";
 import useSlugify from "@console/composables/use-slugify";
 import type { Post, PostRequest } from "@halo-dev/api-client";
-import {
-  consoleApiClient,
-  coreApiClient,
-  ucApiClient,
-} from "@halo-dev/api-client";
+import { consoleApiClient, coreApiClient } from "@halo-dev/api-client";
 import {
   Dialog,
   IconBookRead,
@@ -201,6 +197,8 @@ const handleSave = async (options?: { mute?: boolean }) => {
       const { data: postsWithSameSlug } =
         await coreApiClient.content.post.listPost({
           fieldSelector: [`spec.slug=${formState.value.post.spec.slug}`],
+          page: 1,
+          size: 1,
         });
 
       if (postsWithSameSlug.total) {
@@ -459,18 +457,17 @@ useSessionKeepAlive();
 
 // Upload image
 async function handleUploadImage(file: File, options?: AxiosRequestConfig) {
-  if (!utils.permission.has(["uc:attachments:manage"])) {
+  if (!utils.permission.has(["system:attachments:manage"])) {
     return;
   }
 
-  const { data } = await ucApiClient.storage.attachment.createAttachmentForPost(
-    {
-      file,
-      postName: formState.value.post.metadata.name,
-      waitForPermalink: true,
-    },
-    options
-  );
+  const { data } =
+    await consoleApiClient.storage.attachment.uploadAttachmentForConsole(
+      {
+        file,
+      },
+      options
+    );
   return data;
 }
 </script>

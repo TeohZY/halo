@@ -62,6 +62,10 @@ const theme: Record<string, Record<string, string>> = {
     ...boxClassification,
     wrapper: "flex items-center mb-1 cursor-pointer",
   },
+  switch: {
+    ...boxClassification,
+    wrapper: "flex items-center mb-1 gap-2 cursor-pointer",
+  },
   radio: {
     ...boxClassification,
     input: boxClassification.input.replace("rounded-sm", "rounded-full"),
@@ -114,6 +118,12 @@ const theme: Record<string, Record<string, string>> = {
     wrapper: "flex flex-col gap-0",
     help: "!mt-1",
   },
+  toggle: {
+    label: textClassification.label,
+    wrapper: textClassification.wrapper,
+    help: "mb-1 !mt-0",
+    inner: "inline-flex items-center gap-1",
+  },
   attachment: {
     label: textClassification.label,
     inner: "inline-flex w-full",
@@ -155,8 +165,7 @@ const theme: Record<string, Record<string, string>> = {
     "post-tag-close":
       "h-4 w-4 cursor-pointer text-gray-600 hover:text-gray-900",
     "post-tags-button": "inline-flex h-full cursor-pointer items-center px-1",
-    "dropdown-wrapper":
-      "absolute ring-1 ring-gray-100 top-full bottom-auto right-0 z-10 mt-1 max-h-96 w-full overflow-auto rounded bg-white shadow-lg",
+    "dropdown-wrapper": "max-h-96 w-full overflow-auto bg-white",
   },
   categorySelect: {
     ...textClassification,
@@ -166,13 +175,12 @@ const theme: Record<string, Record<string, string>> = {
     "post-categories": "flex w-full flex-wrap items-center",
     "post-categories-button":
       "inline-flex h-full cursor-pointer items-center px-1",
-    "dropdown-wrapper":
-      "absolute ring-1 ring-gray-100 top-full bottom-auto right-0 z-10 mt-1 max-h-96 w-full overflow-auto rounded bg-white shadow-lg",
+    "dropdown-wrapper": "max-h-96 w-full overflow-auto bg-white",
   },
   secret: {
-    ...textClassification,
-    inner: `${textClassification.inner} !overflow-visible min-h-[2.25rem] !border-none`,
-    input: `w-0 flex-grow bg-transparent py-1 px-3 block transition-all text-sm`,
+    inner: "w-full sm:max-w-lg",
+    wrapper: textClassification.wrapper,
+    label: textClassification.label,
   },
 };
 

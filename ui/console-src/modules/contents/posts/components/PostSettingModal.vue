@@ -277,6 +277,8 @@ async function slugUniqueValidation(node: FormKitNode) {
   const { data: postsWithSameSlug } = await coreApiClient.content.post.listPost(
     {
       fieldSelector,
+      page: 1,
+      size: 1,
     }
   );
 
@@ -340,14 +342,14 @@ const showCancelPublishButton = computed(() => {
               :label="$t('core.post.settings.fields.title.label')"
               type="text"
               name="title"
-              validation="required|length:0,100"
+              validation="required|length:0,1024"
             ></FormKit>
             <FormKit
               v-model="formState.spec.slug"
               :label="$t('core.post.settings.fields.slug.label')"
               name="slug"
               type="text"
-              validation="required|length:0,100|slugUniqueValidation"
+              validation="required|length:0,1024|slugUniqueValidation"
               :validation-rules="{ slugUniqueValidation }"
               :validation-messages="{
                 slugUniqueValidation: $t(
