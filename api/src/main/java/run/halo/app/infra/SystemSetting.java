@@ -28,35 +28,19 @@ public class SystemSetting {
 
     @Builder
     public record Attachment(
+            @Nullable UploadOptions console,
 
-        @Nullable
-        UploadOptions console,
+            @Nullable UploadOptions uc,
 
-        @Nullable
-        UploadOptions uc,
+            @Nullable UploadOptions comment,
 
-        @Nullable
-        UploadOptions comment,
-
-        @Nullable
-        UploadOptions avatar
-
-    ) {
+            @Nullable UploadOptions avatar) {
 
         public static final String GROUP = "attachment";
 
         @Builder
         public record UploadOptions(
-
-            @Nullable
-            String groupName,
-
-            @NotBlank
-            String policyName
-
-        ) {
-        }
-
+                @Nullable String groupName, @NotBlank String policyName) {}
     }
 
     @Data
@@ -109,9 +93,7 @@ public class SystemSetting {
 
         @JsonIgnore
         public Optional<Locale> useSystemLocale() {
-            return Optional.ofNullable(language)
-                .filter(StringUtils::isNotBlank)
-                .map(Locale::forLanguageTag);
+            return Optional.ofNullable(language).filter(StringUtils::isNotBlank).map(Locale::forLanguageTag);
         }
     }
 
@@ -122,19 +104,17 @@ public class SystemSetting {
         boolean mustVerifyEmailOnRegistration;
         String defaultRole;
 
-        /**
-         * @deprecated since 2.22.0, use {@link Attachment} instead.
-         */
+        /** @deprecated since 2.22.0, use {@link Attachment} instead. */
         @Deprecated(since = "2.22.0")
         String avatarPolicy;
 
-        /**
-         * @deprecated since 2.22.0, use {@link Attachment} instead.
-         */
+        /** @deprecated since 2.22.0, use {@link Attachment} instead. */
         @Deprecated(since = "2.22.0")
         String ucAttachmentPolicy;
 
         String protectedUsernames;
+
+        List<String> requiredAgreementPages;
     }
 
     @Data
@@ -179,7 +159,6 @@ public class SystemSetting {
         public static final String GROUP = "authProvider";
 
         private List<AuthProviderState> states;
-
     }
 
     @Data
@@ -191,17 +170,15 @@ public class SystemSetting {
     }
 
     /**
-     * ExtensionPointEnabled key is metadata name of extension point and value is a list of
-     * extension definition names.
+     * ExtensionPointEnabled key is metadata name of extension point and value is a list of extension definition names.
      */
     public static class ExtensionPointEnabled extends LinkedHashMap<String, LinkedHashSet<String>> {
 
         public static final String GROUP = "extensionPointEnabled";
-
     }
 
-    @Nullable
-    public static <T> T get(Map<String, String> data, String key, Class<T> type) {
+    @SuppressWarnings("removal")
+    public static <T> @Nullable T get(Map<String, String> data, String key, Class<T> type) {
         var valueString = data.get(key);
         if (valueString == null) {
             return null;

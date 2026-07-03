@@ -23,7 +23,6 @@ import org.springframework.http.codec.HttpMessageWriter;
 import org.springframework.http.codec.ServerCodecConfigurer;
 import org.springframework.http.codec.json.JacksonJsonDecoder;
 import org.springframework.http.codec.json.JacksonJsonEncoder;
-import org.springframework.lang.NonNull;
 import org.springframework.web.filter.reactive.ServerWebExchangeContextFilter;
 import org.springframework.web.filter.reactive.UrlHandlerFilter;
 import org.springframework.web.reactive.config.ResourceHandlerRegistration;
@@ -44,10 +43,10 @@ import run.halo.app.core.endpoint.WebSocketHandlerMapping;
 import run.halo.app.core.endpoint.console.CustomEndpointsBuilder;
 import run.halo.app.core.extension.endpoint.CustomEndpoint;
 import run.halo.app.infra.SecureRequestMappingHandlerAdapter;
-import run.halo.app.infra.console.ProxyFilter;
-import run.halo.app.infra.console.WebSocketRequestPredicate;
 import run.halo.app.infra.properties.AttachmentProperties;
 import run.halo.app.infra.properties.HaloProperties;
+import run.halo.app.infra.ui.ProxyFilter;
+import run.halo.app.infra.ui.WebSocketRequestPredicate;
 import run.halo.app.infra.webfilter.AdditionalWebFilterChainProxy;
 import run.halo.app.infra.webfilter.LocaleChangeWebFilter;
 import run.halo.app.plugin.extensionpoint.ExtensionGetter;
@@ -84,17 +83,14 @@ public class WebFluxConfig implements WebFluxConfigurer {
     }
 
     @Bean
-    ServerResponse.Context context(CodecConfigurer codec,
-        ViewResolutionResultHandler resultHandler) {
+    ServerResponse.Context context(CodecConfigurer codec, ViewResolutionResultHandler resultHandler) {
         return new ServerResponse.Context() {
             @Override
-            @NonNull
             public List<HttpMessageWriter<?>> messageWriters() {
                 return codec.getWriters();
             }
 
             @Override
-            @NonNull
             public List<ViewResolver> viewResolvers() {
                 return resultHandler.getViewResolvers();
             }
@@ -125,42 +121,36 @@ public class WebFluxConfig implements WebFluxConfigurer {
     }
 
     @Bean
-    RouterFunction<ServerResponse> consoleEndpoints() {
-        var consolePredicate = path("/console/**").and(path("/console/assets/**").negate())
-            .and(accept(MediaType.TEXT_HTML))
-            .and(new WebSocketRequestPredicate().negate());
+    RouterFunction<ServerResponse> uiPageEndpoints() {
+        var consolePagePredicate =
+                path("/console/**").and(accept(MediaType.TEXT_HTML)).and(new WebSocketRequestPredicate().negate());
 
-        var ucPredicate = path("/uc/**").and(path("/uc/assets/**").negate())
-            .and(accept(MediaType.TEXT_HTML))
-            .and(new WebSocketRequestPredicate().negate());
+        var ucPagePredicate =
+                path("/uc/**").and(accept(MediaType.TEXT_HTML)).and(new WebSocketRequestPredicate().negate());
 
-        var consoleIndexHtml =
-            applicationContext.getResource(haloProp.getConsole().getLocation() + "index.html");
+        var consolePageHtml = applicationContext.getResource("classpath:/ui/console.html");
 
-        var ucIndexHtml =
-            applicationContext.getResource(haloProp.getUc().getLocation() + "index.html");
+        var ucPageHtml = applicationContext.getResource("classpath:/ui/uc.html");
 
         return RouterFunctions.route()
-            .GET(consolePredicate,
-                request -> ServerResponse.ok()
-                    .cacheControl(CacheControl.noStore())
-                    .bodyValue(consoleIndexHtml)
-            )
-            .GET(ucPredicate,
-                request -> ServerResponse.ok()
-                    .cacheControl(CacheControl.noStore())
-                    .bodyValue(ucIndexHtml)
-            )
-            .build();
+                .GET(
+                        consolePagePredicate,
+                        request -> ServerResponse.ok()
+                                .cacheControl(CacheControl.noStore())
+                                .bodyValue(consolePageHtml))
+                .GET(
+                        ucPagePredicate,
+                        request -> ServerResponse.ok()
+                                .cacheControl(CacheControl.noStore())
+                                .bodyValue(ucPageHtml))
+                .build();
     }
 
     @Override
     public void addResourceHandlers(ResourceHandlerRegistry registry) {
         var attachmentsRoot = attachmentRootGetter.get();
         var resourceProperties = webProperties.getResources();
-        var cacheControl = resourceProperties.getCache()
-            .getCachecontrol()
-            .toHttpCacheControl();
+        var cacheControl = resourceProperties.getCache().getCachecontrol().toHttpCacheControl();
         if (cacheControl == null) {
             cacheControl = CacheControl.empty();
         }
@@ -168,27 +158,17 @@ public class WebFluxConfig implements WebFluxConfigurer {
 
         // Mandatory resource mapping
         var uploadRegistration = registry.addResourceHandler("/upload/**")
-            .addResourceLocations(FILE_URL_PREFIX + attachmentsRoot.resolve("upload") + "/")
-            .setUseLastModified(useLastModified)
-            .setCacheControl(cacheControl);
+                .addResourceLocations(FILE_URL_PREFIX + attachmentsRoot.resolve("upload") + "/")
+                .setUseLastModified(useLastModified)
+                .setCacheControl(cacheControl);
 
-        // For console assets
-        registry.addResourceHandler("/console/assets/**")
-            .addResourceLocations(haloProp.getConsole().getLocation() + "assets/")
-            .setCacheControl(cacheControl)
-            .setUseLastModified(useLastModified)
-            .resourceChain(true)
-            .addResolver(new EncodedResourceResolver())
-            .addResolver(new PathResourceResolver());
-
-        // For uc assets
-        registry.addResourceHandler("/uc/assets/**")
-            .addResourceLocations(haloProp.getUc().getLocation() + "assets/")
-            .setCacheControl(cacheControl)
-            .setUseLastModified(useLastModified)
-            .resourceChain(true)
-            .addResolver(new EncodedResourceResolver())
-            .addResolver(new PathResourceResolver());
+        registry.addResourceHandler("/ui-assets/**")
+                .addResourceLocations("classpath:/ui/ui-assets/")
+                .setCacheControl(cacheControl)
+                .setUseLastModified(useLastModified)
+                .resourceChain(true)
+                .addResolver(new EncodedResourceResolver())
+                .addResolver(new PathResourceResolver());
 
         // Additional resource mappings
         var staticResources = haloProp.getAttachment().getResourceMappings();
@@ -198,8 +178,8 @@ public class WebFluxConfig implements WebFluxConfigurer {
                 registration = uploadRegistration;
             } else {
                 registration = registry.addResourceHandler(staticResource.getPathPattern())
-                    .setCacheControl(cacheControl)
-                    .setUseLastModified(useLastModified);
+                        .setCacheControl(cacheControl)
+                        .setUseLastModified(useLastModified);
             }
             for (String location : staticResource.getLocations()) {
                 var path = attachmentsRoot.resolve(location);
@@ -214,51 +194,35 @@ public class WebFluxConfig implements WebFluxConfigurer {
 
         var haloStaticPath = haloProp.getWorkDir().resolve("static");
         registry.addResourceHandler("/**")
-            .addResourceLocations(FILE_URL_PREFIX + haloStaticPath + "/")
-            .addResourceLocations(resourceProperties.getStaticLocations())
-            .setCacheControl(cacheControl)
-            .setUseLastModified(useLastModified)
-            .resourceChain(true)
-            .addResolver(new EncodedResourceResolver())
-            .addResolver(new PathResourceResolver());
+                .addResourceLocations(FILE_URL_PREFIX + haloStaticPath + "/")
+                .addResourceLocations(resourceProperties.getStaticLocations())
+                .setCacheControl(cacheControl)
+                .setUseLastModified(useLastModified)
+                .resourceChain(true)
+                .addResolver(new EncodedResourceResolver())
+                .addResolver(new PathResourceResolver());
     }
 
     private void applyThumbnailChain(ResourceHandlerRegistration registration) {
-        registration.resourceChain(false)
-            .addTransformer(
-                new ThumbnailResourceTransformer(localThumbnailService)
-            );
+        registration.resourceChain(false).addTransformer(new ThumbnailResourceTransformer(localThumbnailService));
     }
-
-
-    @ConditionalOnProperty(name = "halo.console.proxy.enabled", havingValue = "true")
-    @Bean
-    @Order(Ordered.HIGHEST_PRECEDENCE + 2)
-    ProxyFilter consoleProxyFilter() {
-        return new ProxyFilter("/console/**", haloProp.getConsole().getProxy());
-    }
-
 
     /**
-     * Order of this filter is higher than
-     * {@link LocaleChangeWebFilter} to allow change locale in dev
-     * mode.
-     * {@link UserLocaleRequestAttributeWriteFilter} is before {@link LocaleChangeWebFilter} to
-     * obtain the locale
+     * Order of this filter is higher than {@link LocaleChangeWebFilter} to allow change locale in dev mode.
+     * {@link UserLocaleRequestAttributeWriteFilter} is before {@link LocaleChangeWebFilter} to obtain the locale
      */
-    @ConditionalOnProperty(name = "halo.uc.proxy.enabled", havingValue = "true")
+    @ConditionalOnProperty(name = "halo.ui.proxy.enabled", havingValue = "true")
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE + 2)
-    ProxyFilter ucProxyFilter() {
-        return new ProxyFilter("/uc/**", haloProp.getUc().getProxy());
+    ProxyFilter uiProxyFilter() {
+        return new ProxyFilter(haloProp.getUi().getProxy(), "/console/**", "/uc/**");
     }
 
     /**
      * Create a WebFilterChainProxy for all AdditionalWebFilters.
      *
-     * <p>The reason why the order is -101 is that the current
-     * AdditionalWebFilterChainProxy should be executed before WebFilterChainProxy
-     * and the order of WebFilterChainProxy is -100.
+     * <p>The reason why the order is -101 is that the current AdditionalWebFilterChainProxy should be executed before
+     * WebFilterChainProxy and the order of WebFilterChainProxy is -100.
      *
      * <p>See {@code org.springframework.security.config.annotation.web.reactive
      * .WebFluxSecurityConfiguration#WEB_FILTER_CHAIN_FILTER_ORDER} for more
@@ -282,8 +246,6 @@ public class WebFluxConfig implements WebFluxConfigurer {
     @Bean
     @Order(Ordered.HIGHEST_PRECEDENCE)
     UrlHandlerFilter urlHandlerFilter() {
-        return UrlHandlerFilter
-            .trailingSlashHandler("/**").mutateRequest()
-            .build();
+        return UrlHandlerFilter.trailingSlashHandler("/**").mutateRequest().build();
     }
 }

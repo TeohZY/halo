@@ -4,10 +4,14 @@ import { stores } from "@halo-dev/ui-shared";
 import { createPinia } from "pinia";
 import "@/setup/setupStyles";
 import { createApp } from "vue";
+import { builtinFormKitInputs } from "@/formkit/inputs";
 import { setLanguage, setupI18n } from "@/locales";
 import { setupApiClient } from "@/setup/setupApiClient";
-import { setupComponents } from "@/setup/setupComponents";
-import { setupCoreModules, setupPluginModules } from "@/setup/setupModules";
+import {
+  setupComponents,
+  type SetupComponentsOptions,
+} from "@/setup/setupComponents";
+import { setupCoreModules, setupUiPluginRuntime } from "@/setup/setupModules";
 import "core-js/es/object/has-own";
 import { setupUserPermissions } from "@/setup/setupUserPermissions";
 import { setupVueQuery } from "@/setup/setupVueQuery";
@@ -15,8 +19,8 @@ import App from "./App.vue";
 import router from "./router";
 
 const app = createApp(App);
+let componentsReady = false;
 
-setupComponents(app);
 setupI18n(app);
 setupVueQuery(app);
 setupApiClient();
@@ -26,6 +30,14 @@ app.use(createPinia());
 async function loadActivatedTheme() {
   const themeStore = useThemeStore();
   await themeStore.fetchActivatedTheme();
+}
+
+function setupAppComponents(options?: SetupComponentsOptions) {
+  if (componentsReady) {
+    return;
+  }
+  setupComponents(app, options);
+  componentsReady = true;
 }
 
 await initApp();
@@ -43,21 +55,25 @@ async function initApp() {
     await setLanguage();
 
     if (currentUserStore.isAnonymous) {
+      setupAppComponents();
       return;
     }
 
     await setupUserPermissions(app);
 
-    try {
-      await setupPluginModules({ app, router, platform: "console" });
-    } catch (e) {
-      console.error("Failed to load plugins", e);
-    }
+    await setupUiPluginRuntime({
+      app,
+      router,
+      platform: "console",
+      setupComponents: setupAppComponents,
+      registeredFormKitInputs: builtinFormKitInputs,
+    });
 
     await loadActivatedTheme();
   } catch (e) {
     console.error(e);
   } finally {
+    setupAppComponents();
     app.use(router);
     app.mount("#app");
   }

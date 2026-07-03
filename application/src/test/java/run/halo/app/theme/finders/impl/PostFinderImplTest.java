@@ -1,8 +1,9 @@
 package run.halo.app.theme.finders.impl;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 import java.time.Instant;
 import java.util.HashMap;
@@ -12,18 +13,17 @@ import java.util.function.Predicate;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Sort;
 import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 import run.halo.app.content.PostService;
 import run.halo.app.core.counter.CounterService;
 import run.halo.app.core.extension.content.Post;
-import run.halo.app.extension.ListResult;
-import run.halo.app.extension.Metadata;
-import run.halo.app.extension.PageRequest;
-import run.halo.app.extension.ReactiveExtensionClient;
+import run.halo.app.extension.*;
 import run.halo.app.theme.finders.CategoryFinder;
 import run.halo.app.theme.finders.ContributorFinder;
 import run.halo.app.theme.finders.PostPublicQueryService;
@@ -32,6 +32,7 @@ import run.halo.app.theme.finders.vo.ListedPostVo;
 import run.halo.app.theme.finders.vo.PostArchiveVo;
 import run.halo.app.theme.finders.vo.PostArchiveYearMonthVo;
 import run.halo.app.theme.router.DefaultQueryPostPredicateResolver;
+import run.halo.app.theme.router.ReactiveQueryPostPredicateResolver;
 
 /**
  * Tests for {@link PostFinderImpl}.
@@ -63,28 +64,31 @@ class PostFinderImplTest {
     @Mock
     private PostPublicQueryService publicQueryService;
 
+    @Mock
+    ReactiveQueryPostPredicateResolver postPredicateResolver;
+
     @InjectMocks
     private PostFinderImpl postFinder;
 
     @Test
     void predicate() {
-        Predicate<Post> predicate = new DefaultQueryPostPredicateResolver().getPredicate().block();
+        Predicate<Post> predicate =
+                new DefaultQueryPostPredicateResolver().getPredicate().block();
         assertThat(predicate).isNotNull();
 
-        List<String> strings = posts().stream().filter(predicate)
-            .map(post -> post.getMetadata().getName())
-            .toList();
+        List<String> strings = posts().stream()
+                .filter(predicate)
+                .map(post -> post.getMetadata().getName())
+                .toList();
         assertThat(strings).isEqualTo(List.of("post-1", "post-2", "post-6"));
     }
 
     @Test
     void archives() {
-        List<ListedPostVo> listedPostVos = postsForArchives().stream()
-            .map(ListedPostVo::from)
-            .toList();
+        List<ListedPostVo> listedPostVos =
+                postsForArchives().stream().map(ListedPostVo::from).toList();
         ListResult<ListedPostVo> listResult = new ListResult<>(1, 10, 3, listedPostVos);
-        when(publicQueryService.list(any(), any(PageRequest.class)))
-            .thenReturn(Mono.just(listResult));
+        when(publicQueryService.list(any(), any(PageRequest.class))).thenReturn(Mono.just(listResult));
 
         ListResult<PostArchiveVo> archives = postFinder.archives(1, 10).block();
         assertThat(archives).isNotNull();
@@ -100,6 +104,34 @@ class PostFinderImplTest {
         assertThat(items.get(1).getYear()).isEqualTo("2021");
         assertThat(items.get(1).getMonths()).hasSize(1);
         assertThat(items.get(1).getMonths().get(0).getMonth()).isEqualTo("01");
+    }
+
+    @Test
+    void shouldReturnEmptyRandomPostsIfNoPostsFound() {
+        var listOptions = mock(ListOptions.class);
+        when(postPredicateResolver.getListOptions()).thenReturn(Mono.just(listOptions));
+        when(client.countBy(Post.class, listOptions)).thenReturn(Mono.just(0L));
+        postFinder.random(10).as(StepVerifier::create).expectNext(List.of()).verifyComplete();
+    }
+
+    @Test
+    void shouldReturnRandomPosts() {
+        var listOptions = mock(ListOptions.class);
+        when(postPredicateResolver.getListOptions()).thenReturn(Mono.just(listOptions));
+        when(client.countBy(Post.class, listOptions)).thenReturn(Mono.just(100L));
+        var posts = java.util.stream.IntStream.rangeClosed(1, 10)
+                .mapToObj(this::post)
+                .toList();
+        when(client.listBy(same(Post.class), same(listOptions), isA(PageRequest.class)))
+                .thenReturn(Mono.just(new ListResult<>(0, 10, 100, posts)));
+        var postVos = posts.stream().map(ListedPostVo::from).toList();
+        when(publicQueryService.convertToListedVos(anyList())).thenReturn(Mono.just(postVos));
+
+        postFinder.random(10).as(StepVerifier::create).expectNext(postVos).verifyComplete();
+
+        verify(publicQueryService).convertToListedVos(assertArg(items -> {
+            assertTrue(items.containsAll(posts));
+        }));
     }
 
     List<Post> postsForArchives() {
@@ -197,8 +229,53 @@ class PostFinderImplTest {
             query.setSort(List.of("spec.publishTime,desc"));
             result = query.toPageRequest();
             assertThat(result.getSort())
-                .isEqualTo(Sort.by(Sort.Order.desc("spec.publishTime"))
-                    .and(PostFinderImpl.defaultSort()));
+                    .isEqualTo(Sort.by(Sort.Order.desc("spec.publishTime")).and(PostFinderImpl.defaultSort()));
+        }
+    }
+
+    @Nested
+    class CursorByCategoryTest {
+
+        @Test
+        void withCategories_shouldFilterByPrimaryCategory() {
+            var currentPost = post(1);
+            currentPost.getSpec().setCategories(List.of("java", "tutorial"));
+            currentPost.getSpec().setPublishTime(Instant.parse("2023-06-15T00:00:00Z"));
+
+            when(client.fetch(Post.class, "post-1")).thenReturn(Mono.just(currentPost));
+
+            var listOptions = ListOptions.builder().build();
+            when(postPredicateResolver.getListOptions()).thenReturn(Mono.just(listOptions));
+
+            when(client.listBy(eq(Post.class), any(ListOptions.class), any(PageRequest.class)))
+                    .thenReturn(Mono.just(new ListResult<>(1, 10, 0, List.of())));
+
+            postFinder.cursorByCategory("post-1").block();
+
+            var listOptionsCaptor = ArgumentCaptor.forClass(ListOptions.class);
+            verify(client, times(2)).listBy(eq(Post.class), listOptionsCaptor.capture(), any(PageRequest.class));
+
+            var capturedOptions = listOptionsCaptor.getAllValues();
+            for (var options : capturedOptions) {
+                assertThat(options.toCondition().toString()).contains("spec.categories = java");
+            }
+        }
+
+        @Test
+        void withoutCategories_shouldReturnEmptyNavigation() {
+            var currentPost = post(1);
+            currentPost.getSpec().setCategories(null);
+            currentPost.getSpec().setPublishTime(Instant.parse("2023-06-15T00:00:00Z"));
+
+            when(client.fetch(Post.class, "post-1")).thenReturn(Mono.just(currentPost));
+
+            var result = postFinder.cursorByCategory("post-1").block();
+            assertThat(result).isNotNull();
+            assertThat(result.hasPrevious()).isFalse();
+            assertThat(result.hasNext()).isFalse();
+
+            verify(client, never()).listBy(eq(Post.class), any(ListOptions.class), any(PageRequest.class));
+            verify(postPredicateResolver, never()).getListOptions();
         }
     }
 }

@@ -2,7 +2,6 @@ package run.halo.app.extension.index.query;
 
 import java.util.Collection;
 import java.util.stream.Collectors;
-import org.jetbrains.annotations.NotNull;
 import org.springframework.util.Assert;
 
 record NotInCondition(String indexName, Collection<Object> keys) implements IndexCondition {
@@ -16,11 +15,8 @@ record NotInCondition(String indexName, Collection<Object> keys) implements Inde
         return new InCondition(indexName, keys);
     }
 
-    @NotNull
     @Override
     public String toString() {
-        return indexName + " NOT IN ("
-            + keys.stream().map(Object::toString).collect(Collectors.joining(", "))
-            + ")";
+        return indexName + " NOT IN (" + keys.stream().map(Object::toString).collect(Collectors.joining(", ")) + ")";
     }
 }

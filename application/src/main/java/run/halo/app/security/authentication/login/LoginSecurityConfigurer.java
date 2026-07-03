@@ -2,6 +2,7 @@ package run.halo.app.security.authentication.login;
 
 import io.github.resilience4j.ratelimiter.RateLimiterRegistry;
 import io.micrometer.observation.ObservationRegistry;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.MessageSource;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.HttpMethod;
@@ -24,12 +25,15 @@ import reactor.core.publisher.Mono;
 import run.halo.app.plugin.extensionpoint.ExtensionGetter;
 import run.halo.app.security.HaloUserDetails;
 import run.halo.app.security.LoginHandlerEnhancer;
+import run.halo.app.security.LoginParameterRequestCache;
+import run.halo.app.security.SecurityConstant;
 import run.halo.app.security.authentication.CryptoService;
 import run.halo.app.security.authentication.SecurityConfigurer;
 import run.halo.app.security.authentication.twofactor.TwoFactorAuthentication;
 
 @Component
 @Order(0)
+@RequiredArgsConstructor
 public class LoginSecurityConfigurer implements SecurityConfigurer {
 
     private final ObservationRegistry observationRegistry;
@@ -51,43 +55,27 @@ public class LoginSecurityConfigurer implements SecurityConfigurer {
 
     private final LoginHandlerEnhancer loginHandlerEnhancer;
 
-    public LoginSecurityConfigurer(ObservationRegistry observationRegistry,
-        ReactiveUserDetailsService userDetailsService,
-        ReactiveUserDetailsPasswordService passwordService, PasswordEncoder passwordEncoder,
-        ServerSecurityContextRepository securityContextRepository, CryptoService cryptoService,
-        ExtensionGetter extensionGetter, ServerResponse.Context context,
-        MessageSource messageSource, RateLimiterRegistry rateLimiterRegistry,
-        LoginHandlerEnhancer loginHandlerEnhancer) {
-        this.observationRegistry = observationRegistry;
-        this.userDetailsService = userDetailsService;
-        this.passwordService = passwordService;
-        this.passwordEncoder = passwordEncoder;
-        this.securityContextRepository = securityContextRepository;
-        this.cryptoService = cryptoService;
-        this.extensionGetter = extensionGetter;
-        this.context = context;
-        this.messageSource = messageSource;
-        this.rateLimiterRegistry = rateLimiterRegistry;
-        this.loginHandlerEnhancer = loginHandlerEnhancer;
-    }
+    private final LoginParameterRequestCache parameterRequestCache;
 
     @Override
     public void configure(ServerHttpSecurity http) {
         var filter = new AuthenticationWebFilter(authenticationManager()) {
             @Override
-            protected Mono<Void> onAuthenticationSuccess(Authentication authentication,
-                WebFilterExchange webFilterExchange) {
+            protected Mono<Void> onAuthenticationSuccess(
+                    Authentication authentication, WebFilterExchange webFilterExchange) {
                 // check if 2FA is enabled after authenticating successfully.
                 if (authentication.getPrincipal() instanceof HaloUserDetails userDetails
-                    && userDetails.isTwoFactorAuthEnabled()) {
+                        && userDetails.isTwoFactorAuthEnabled()) {
                     authentication = new TwoFactorAuthentication(authentication);
                 }
                 return super.onAuthenticationSuccess(authentication, webFilterExchange);
             }
         };
         var requiresMatcher = ServerWebExchangeMatchers.pathMatchers(HttpMethod.POST, "/login");
-        var handler = new UsernamePasswordHandler(context, messageSource, loginHandlerEnhancer);
+        var handler = new UsernamePasswordHandler(context, messageSource, loginHandlerEnhancer, parameterRequestCache);
         var authConverter = new LoginAuthenticationConverter(cryptoService, rateLimiterRegistry);
+        authConverter.setUsernameParameter(SecurityConstant.USERNAME_PARAMETER_NAME);
+        authConverter.setPasswordParameter(SecurityConstant.PASSWORD_PARAMETER_NAME);
         filter.setRequiresAuthenticationMatcher(requiresMatcher);
         filter.setAuthenticationFailureHandler(handler);
         filter.setAuthenticationSuccessHandler(handler);
@@ -98,8 +86,8 @@ public class LoginSecurityConfigurer implements SecurityConfigurer {
     }
 
     ReactiveAuthenticationManager authenticationManager() {
-        var manager = new UsernamePasswordDelegatingAuthenticationManager(extensionGetter,
-            defaultAuthenticationManager());
+        var manager =
+                new UsernamePasswordDelegatingAuthenticationManager(extensionGetter, defaultAuthenticationManager());
         return new ObservationReactiveAuthenticationManager(observationRegistry, manager);
     }
 

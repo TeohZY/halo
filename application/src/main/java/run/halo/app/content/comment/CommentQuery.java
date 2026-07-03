@@ -8,9 +8,9 @@ import static run.halo.app.extension.index.query.Queries.equal;
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
+import org.jspecify.annotations.Nullable;
 import org.springdoc.core.fn.builders.operation.Builder;
 import org.springframework.data.domain.Sort;
-import org.springframework.lang.Nullable;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import run.halo.app.core.extension.User;
 import run.halo.app.core.extension.content.Comment;
@@ -31,18 +31,15 @@ public class CommentQuery extends SortableRequest {
         super(request.exchange());
     }
 
-    @Nullable
-    public String getKeyword() {
+    public @Nullable String getKeyword() {
         return queryParams.getFirst("keyword");
     }
 
-    @Nullable
-    public String getOwnerKind() {
+    public @Nullable String getOwnerKind() {
         return queryParams.getFirst("ownerKind");
     }
 
-    @Nullable
-    public String getOwnerName() {
+    public @Nullable String getOwnerName() {
         return queryParams.getFirst("ownerName");
     }
 
@@ -52,27 +49,21 @@ public class CommentQuery extends SortableRequest {
         return super.getSort().and(Sort.by(desc("status.lastReplyTime")));
     }
 
-    /**
-     * Convert to list options.
-     */
+    /** Convert to list options. */
     @Override
     public ListOptions toListOptions() {
         var builder = ListOptions.builder(super.toListOptions());
 
         Optional.ofNullable(getKeyword())
-            .filter(StringUtils::isNotBlank)
-            .ifPresent(keyword -> builder.andQuery(contains("spec.raw", keyword)));
+                .filter(StringUtils::isNotBlank)
+                .ifPresent(keyword -> builder.andQuery(contains("spec.raw", keyword)));
 
-        Optional.ofNullable(getOwnerName())
-            .filter(StringUtils::isNotBlank)
-            .ifPresent(ownerName -> {
-                var ownerKind = Optional.ofNullable(getOwnerKind())
+        Optional.ofNullable(getOwnerName()).filter(StringUtils::isNotBlank).ifPresent(ownerName -> {
+            var ownerKind = Optional.ofNullable(getOwnerKind())
                     .filter(StringUtils::isNotBlank)
                     .orElse(User.KIND);
-                builder.andQuery(
-                    equal("spec.owner", Comment.CommentOwner.ownerIdentity(ownerKind, ownerName))
-                );
-            });
+            builder.andQuery(equal("spec.owner", Comment.CommentOwner.ownerIdentity(ownerKind, ownerName)));
+        });
 
         return builder.build();
     }
@@ -80,20 +71,20 @@ public class CommentQuery extends SortableRequest {
     public static void buildParameters(Builder builder) {
         IListRequest.buildParameters(builder);
         builder.parameter(QueryParamBuildUtil.sortParameter())
-            .parameter(parameterBuilder()
-                .in(ParameterIn.QUERY)
-                .name("keyword")
-                .description("Comments filtered by keyword.")
-                .implementation(String.class))
-            .parameter(parameterBuilder()
-                .in(ParameterIn.QUERY)
-                .name("ownerKind")
-                .description("Commenter kind.")
-                .implementation(String.class))
-            .parameter(parameterBuilder()
-                .in(ParameterIn.QUERY)
-                .name("ownerName")
-                .description("Commenter name.")
-                .implementation(String.class));
+                .parameter(parameterBuilder()
+                        .in(ParameterIn.QUERY)
+                        .name("keyword")
+                        .description("Keyword used to match the raw comment text.")
+                        .implementation(String.class))
+                .parameter(parameterBuilder()
+                        .in(ParameterIn.QUERY)
+                        .name("ownerKind")
+                        .description("Kind of the commenter identity. Defaults to User when ownerName is provided.")
+                        .implementation(String.class))
+                .parameter(parameterBuilder()
+                        .in(ParameterIn.QUERY)
+                        .name("ownerName")
+                        .description("Name of the commenter identity to filter by.")
+                        .implementation(String.class));
     }
 }

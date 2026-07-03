@@ -16,9 +16,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
 import run.halo.app.content.permalinks.TagPermalinkPolicy;
 import run.halo.app.core.extension.content.Tag;
-import run.halo.app.core.reconciler.TagReconciler;
 import run.halo.app.extension.ExtensionClient;
 import run.halo.app.extension.Metadata;
 
@@ -31,21 +31,23 @@ import run.halo.app.extension.Metadata;
 @ExtendWith(MockitoExtension.class)
 class TagReconcilerTest {
     @Mock
-    private ExtensionClient client;
+    ExtensionClient client;
 
     @Mock
-    private TagPermalinkPolicy tagPermalinkPolicy;
+    TagPermalinkPolicy tagPermalinkPolicy;
+
+    @Mock
+    ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
-    private TagReconciler tagReconciler;
+    TagReconciler tagReconciler;
 
     @Test
     void reconcile() {
         Tag tag = tag();
-        when(client.fetch(eq(Tag.class), eq("fake-tag")))
-            .thenReturn(Optional.of(tag));
+        when(client.fetch(eq(Tag.class), eq("fake-tag"))).thenReturn(Optional.of(tag));
         when(tagPermalinkPolicy.permalink(any()))
-            .thenAnswer(arg -> "/tags/" + tag.getSpec().getSlug());
+                .thenAnswer(arg -> "/tags/" + tag.getSpec().getSlug());
         ArgumentCaptor<Tag> captor = ArgumentCaptor.forClass(Tag.class);
 
         tagReconciler.reconcile(new TagReconciler.Request("fake-tag"));
@@ -66,8 +68,7 @@ class TagReconcilerTest {
         Tag tag = tag();
         tag.getMetadata().setDeletionTimestamp(Instant.now());
         tag.getMetadata().setFinalizers(Set.of(TagReconciler.FINALIZER_NAME));
-        when(client.fetch(eq(Tag.class), eq("fake-tag")))
-            .thenReturn(Optional.of(tag));
+        when(client.fetch(eq(Tag.class), eq("fake-tag"))).thenReturn(Optional.of(tag));
         ArgumentCaptor<Tag> captor = ArgumentCaptor.forClass(Tag.class);
 
         tagReconciler.reconcile(new TagReconciler.Request("fake-tag"));

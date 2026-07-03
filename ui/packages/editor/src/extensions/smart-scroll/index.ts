@@ -1,5 +1,6 @@
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { EditorView, Extension } from "@/tiptap";
+import { getCursorCoords } from "@/utils/get-cursor-coords";
 
 export interface SmartScrollOptions {
   /**
@@ -47,12 +48,21 @@ export const ExtensionSmartScroll = Extension.create<SmartScrollOptions>({
 
   addProseMirrorPlugins() {
     const options = this.options;
-    let lastMouseDownTime = 0;
+    let isMouseSelecting = false;
+    let lastMouseInteractionTime = 0;
 
     return [
       new Plugin({
         key: new PluginKey("smartScroll"),
         view() {
+          const handleMouseUp = () => {
+            isMouseSelecting = false;
+            lastMouseInteractionTime = Date.now();
+          };
+
+          window.addEventListener("mouseup", handleMouseUp, true);
+          window.addEventListener("dragend", handleMouseUp, true);
+
           return {
             update(view, prevState) {
               if (!prevState) {
@@ -65,23 +75,43 @@ export const ExtensionSmartScroll = Extension.create<SmartScrollOptions>({
               const docChanged = prevState.doc !== doc;
               const selectionChanged = !prevState.selection.eq(selection);
 
-              const isRecentMouseClick = Date.now() - lastMouseDownTime < 100;
+              const isRecentMouseInteraction =
+                isMouseSelecting || Date.now() - lastMouseInteractionTime < 150;
 
               // The conditions for triggering scrolling:
               // 1. Document content changed (input, delete, etc.)
-              // 2. Selection changed but not caused by mouse click (arrow keys, etc.)
-              if (docChanged || (selectionChanged && !isRecentMouseClick)) {
+              // 2. Selection changed but not caused by mouse interaction
+              // (arrow keys, keyboard selection, etc.)
+              if (
+                docChanged ||
+                (selectionChanged && !isRecentMouseInteraction)
+              ) {
                 requestAnimationFrame(() => {
                   smartScroll(view, options);
                 });
               }
+            },
+            destroy() {
+              window.removeEventListener("mouseup", handleMouseUp, true);
+              window.removeEventListener("dragend", handleMouseUp, true);
             },
           };
         },
         props: {
           handleDOMEvents: {
             mousedown: () => {
-              lastMouseDownTime = Date.now();
+              isMouseSelecting = true;
+              lastMouseInteractionTime = Date.now();
+              return false;
+            },
+            mouseup: () => {
+              isMouseSelecting = false;
+              lastMouseInteractionTime = Date.now();
+              return false;
+            },
+            dragend: () => {
+              isMouseSelecting = false;
+              lastMouseInteractionTime = Date.now();
               return false;
             },
           },
@@ -91,32 +121,32 @@ export const ExtensionSmartScroll = Extension.create<SmartScrollOptions>({
   },
 });
 
+const getScrollContainer = (
+  view: EditorView,
+  options: SmartScrollOptions
+): HTMLElement | null => {
+  let scrollContainer: HTMLElement | null = null;
+  if (!options.scrollContainer) {
+    const editorElement = view.dom as HTMLElement;
+    scrollContainer = findScrollContainer(editorElement);
+  } else {
+    if (typeof options.scrollContainer === "function") {
+      scrollContainer = options.scrollContainer(view);
+    } else if (typeof options.scrollContainer === "string") {
+      scrollContainer = document.querySelector(
+        options.scrollContainer
+      ) as HTMLElement;
+    } else {
+      scrollContainer = options.scrollContainer;
+    }
+  }
+
+  return scrollContainer;
+};
+
 const smartScroll = (view: EditorView, options: SmartScrollOptions): void => {
   try {
-    const { state } = view;
-    const { selection } = state;
-
-    const coords = view.coordsAtPos(selection.$head.pos);
-    if (!coords) {
-      return;
-    }
-
-    let scrollContainer: HTMLElement | null = null;
-    if (!options.scrollContainer) {
-      const editorElement = view.dom as HTMLElement;
-      scrollContainer = findScrollContainer(editorElement);
-    } else {
-      if (typeof options.scrollContainer === "function") {
-        scrollContainer = options.scrollContainer(view);
-      } else if (typeof options.scrollContainer === "string") {
-        scrollContainer = document.querySelector(
-          options.scrollContainer
-        ) as HTMLElement;
-      } else {
-        scrollContainer = options.scrollContainer;
-      }
-    }
-
+    const scrollContainer = getScrollContainer(view, options);
     if (!scrollContainer) {
       return;
     }
@@ -124,6 +154,11 @@ const smartScroll = (view: EditorView, options: SmartScrollOptions): void => {
     const containerRect = scrollContainer.getBoundingClientRect();
     const viewportTop = containerRect.top;
     const viewportBottom = containerRect.bottom;
+
+    const coords = getCursorCoords(view);
+    if (!coords) {
+      return;
+    }
 
     const cursorTop = coords.top;
     const cursorBottom = coords.bottom;

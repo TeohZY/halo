@@ -5,7 +5,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 import lombok.extern.slf4j.Slf4j;
-import org.jspecify.annotations.NonNull;
 import org.pf4j.DevelopmentPluginClasspath;
 import org.pf4j.PluginRuntimeException;
 import org.pf4j.util.FileUtils;
@@ -17,8 +16,8 @@ import run.halo.app.extension.Unstructured;
 import run.halo.app.infra.utils.YamlUnstructuredLoader;
 
 /**
- * <p>Reading plugin descriptor data from plugin.yaml.</p>
- * Example:
+ * Reading plugin descriptor data from plugin.yaml. Example:
+ *
  * <pre>
  * apiVersion: v1alpha1
  * kind: Plugin
@@ -62,8 +61,7 @@ public class YamlPluginFinder implements PluginFinder {
     }
 
     @Override
-    @NonNull
-    public Plugin find(@NonNull Path pluginPath) {
+    public Plugin find(Path pluginPath) {
         Plugin plugin = readPluginDescriptor(pluginPath);
         if (plugin.getStatus() == null) {
             Plugin.PluginStatus pluginStatus = new Plugin.PluginStatus();
@@ -71,8 +69,7 @@ public class YamlPluginFinder implements PluginFinder {
             pluginStatus.setLoadLocation(pluginPath.toUri());
             plugin.setStatus(pluginStatus);
         }
-        MetadataUtil.nullSafeAnnotations(plugin)
-            .put(PluginConst.PLUGIN_PATH, pluginPath.toString());
+        MetadataUtil.nullSafeAnnotations(plugin).put(PluginConst.PLUGIN_PATH, pluginPath.toString());
         return plugin;
     }
 
@@ -96,16 +93,13 @@ public class YamlPluginFinder implements PluginFinder {
     }
 
     protected Plugin unstructuredToPlugin(Resource propertyResource) {
-        YamlUnstructuredLoader yamlUnstructuredLoader =
-            new YamlUnstructuredLoader(propertyResource);
+        YamlUnstructuredLoader yamlUnstructuredLoader = new YamlUnstructuredLoader(propertyResource);
         List<Unstructured> unstructuredList = yamlUnstructuredLoader.load();
         if (unstructuredList.size() != 1) {
-            throw new PluginRuntimeException("Unable to find plugin descriptor file '{}'",
-                propertiesFileName);
+            throw new PluginRuntimeException("Unable to find plugin descriptor file '{}'", propertiesFileName);
         }
         Unstructured unstructured = unstructuredList.get(0);
-        return Unstructured.OBJECT_MAPPER.convertValue(unstructured,
-            Plugin.class);
+        return Unstructured.OBJECT_MAPPER.convertValue(unstructured, Plugin.class);
     }
 
     protected Path getManifestPath(Path pluginPath, String propertiesFileName) {
@@ -117,8 +111,7 @@ public class YamlPluginFinder implements PluginFinder {
                     return path;
                 }
             }
-            throw new PluginRuntimeException(
-                "Unable to find plugin descriptor file: " + DEFAULT_PROPERTIES_FILE_NAME);
+            throw new PluginRuntimeException("Unable to find plugin descriptor file: " + DEFAULT_PROPERTIES_FILE_NAME);
         } else {
             // it's a jar file
             try {

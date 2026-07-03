@@ -7,7 +7,6 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.Consumer;
 import org.springframework.context.ApplicationEventPublisher;
-import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 import run.halo.app.extension.event.SchemeAddedEvent;
@@ -25,8 +24,7 @@ public class DefaultSchemeManager implements SchemeManager {
 
     private final ApplicationEventPublisher eventPublisher;
 
-    public DefaultSchemeManager(IndexEngine indexEngine,
-        ApplicationEventPublisher eventPublisher) {
+    public DefaultSchemeManager(IndexEngine indexEngine, ApplicationEventPublisher eventPublisher) {
         this.indexEngine = indexEngine;
         this.eventPublisher = eventPublisher;
         // we have to use CopyOnWriteArrayList at here to prevent concurrent modification between
@@ -35,8 +33,7 @@ public class DefaultSchemeManager implements SchemeManager {
     }
 
     @Override
-    public <E extends Extension> void register(Class<E> type,
-        Consumer<IndexSpecs<E>> specsConsumer) {
+    public <E extends Extension> void register(Class<E> type, Consumer<IndexSpecs<E>> specsConsumer) {
         var scheme = Scheme.buildFromType(type);
         if (schemes.contains(scheme)) {
             return;
@@ -51,7 +48,7 @@ public class DefaultSchemeManager implements SchemeManager {
     }
 
     @Override
-    public void unregister(@NonNull Scheme scheme) {
+    public void unregister(Scheme scheme) {
         if (schemes.contains(scheme)) {
             indexEngine.getIndicesManager().remove(scheme.type());
             schemes.remove(scheme);
@@ -60,7 +57,6 @@ public class DefaultSchemeManager implements SchemeManager {
     }
 
     @Override
-    @NonNull
     public List<Scheme> schemes() {
         return Collections.unmodifiableList(schemes);
     }
@@ -75,8 +71,9 @@ public class DefaultSchemeManager implements SchemeManager {
 
         @Override
         public <K extends Comparable<K>> void add(ValueIndexSpec<E, K> indexSpec) {
-            Assert.isTrue(!specMap.containsKey(indexSpec.getName()),
-                "Index spec with name " + indexSpec.getName() + " already exists.");
+            Assert.isTrue(
+                    !specMap.containsKey(indexSpec.getName()),
+                    "Index spec with name " + indexSpec.getName() + " already exists.");
             this.specMap.put(indexSpec.getName(), indexSpec);
         }
 
@@ -84,6 +81,5 @@ public class DefaultSchemeManager implements SchemeManager {
         public List<ValueIndexSpec<E, ?>> getIndexSpecs() {
             return specMap.values().stream().toList();
         }
-
     }
 }

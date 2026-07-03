@@ -1,3 +1,4 @@
+import type { FormKitTypeDefinition } from "@formkit/core";
 import type {
   Attachment,
   Backup,
@@ -8,7 +9,7 @@ import type {
   Plugin,
   Theme,
 } from "@halo-dev/api-client";
-import type { AnyExtension } from "@halo-dev/richtext-editor";
+import type { AnyExtension } from "@tiptap/core";
 import type { Component, Ref } from "vue";
 import type { RouteRecordName, RouteRecordRaw } from "vue-router";
 import type { AttachmentSelectProvider } from "./attachment-selector";
@@ -44,6 +45,19 @@ export interface RouteRecordAppend {
    * The route definition to be appended as a child route.
    */
   route: RouteRecordRaw;
+}
+
+/**
+ * FormKit-related extensions provided by a UI plugin.
+ */
+export interface PluginFormKit {
+  /**
+   * Custom FormKit input definitions registered when the plugin is activated.
+   *
+   * @remarks
+   * The key is the FormKit input type used by `$formkit` in schemas.
+   */
+  inputs?: Record<string, FormKitTypeDefinition>;
 }
 
 /**
@@ -330,6 +344,11 @@ export interface ExtensionPoint {
  * @see https://docs.halo.run/developer-guide/plugin/basics/ui/entry
  */
 export interface PluginModule {
+  /**
+   * FormKit integrations provided by the plugin.
+   */
+  formkit?: PluginFormKit;
+
   /**
    * Components that will be globally registered when the plugin is activated.
    * These components can be used throughout the Halo console without explicit imports.

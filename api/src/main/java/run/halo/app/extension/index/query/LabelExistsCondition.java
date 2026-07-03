@@ -1,7 +1,5 @@
 package run.halo.app.extension.index.query;
 
-import org.jetbrains.annotations.NotNull;
-
 record LabelExistsCondition(String labelKey) implements LabelCondition {
 
     @Override
@@ -9,10 +7,8 @@ record LabelExistsCondition(String labelKey) implements LabelCondition {
         return new LabelNotExistsCondition(labelKey);
     }
 
-    @NotNull
     @Override
     public String toString() {
         return "EXISTS " + INDEX_NAME + "['" + labelKey + "']";
     }
-
 }

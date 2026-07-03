@@ -220,11 +220,22 @@ const handleSelectNext = async () => {
   }
 };
 
+function handleSelectAll() {
+  data.value?.items.forEach((attachment) => {
+    if (!isDisabled(attachment) && !isChecked(attachment)) {
+      handleSelect(attachment);
+    }
+  });
+}
+
+function handleDeselectAll() {
+  selectedAttachmentNames.value.clear();
+}
+
 function onUploadDone() {
   handleFetchAttachments();
   uploadVisible.value = false;
 }
-
 function onUploaded(response: SuccessResponse) {
   if (response.body) {
     handleSelect(response.body as Attachment);
@@ -301,16 +312,17 @@ function onUploaded(response: SuccessResponse) {
           </div>
 
           <div class="flex flex-row gap-2">
-            <div
+            <button
+              v-tooltip="$t('core.common.buttons.refresh')"
+              type="button"
               class="group cursor-pointer rounded p-1 hover:bg-gray-200"
               @click="handleFetchAttachments()"
             >
               <IconRefreshLine
-                v-tooltip="$t('core.common.buttons.refresh')"
                 :class="{ 'animate-spin text-gray-900': isFetching }"
                 class="h-4 w-4 text-gray-600 group-hover:text-gray-900"
               />
-            </div>
+            </button>
           </div>
         </VSpace>
       </div>
@@ -318,17 +330,35 @@ function onUploaded(response: SuccessResponse) {
   </div>
 
   <div class="mb-5 space-y-3">
-    <VButton @click="uploadVisible = !uploadVisible">
-      <template #icon>
-        <IconUpload v-if="!uploadVisible" />
-        <IconClose v-else />
+    <VSpace>
+      <VButton @click="uploadVisible = !uploadVisible">
+        <template #icon>
+          <IconUpload v-if="!uploadVisible" />
+          <IconClose v-else />
+        </template>
+        {{
+          uploadVisible
+            ? $t("core.common.buttons.cancel_upload")
+            : $t("core.common.buttons.upload")
+        }}
+      </VButton>
+      <template
+        v-if="(props.max === undefined || props.max > 1) && !uploadVisible"
+      >
+        <VButton v-if="data?.items?.length" ghost @click="handleSelectAll">
+          {{
+            $t("core.uc_attachment.select_modal.operations.select_page.button")
+          }}
+        </VButton>
+        <VButton
+          v-if="selectedAttachmentNames.size"
+          ghost
+          @click="handleDeselectAll"
+        >
+          {{ $t("core.uc_attachment.select_modal.operations.deselect.button") }}
+        </VButton>
       </template>
-      {{
-        uploadVisible
-          ? $t("core.common.buttons.cancel_upload")
-          : $t("core.common.buttons.upload")
-      }}
-    </VButton>
+    </VSpace>
     <Transition v-if="uploadVisible" appear name="fade">
       <UppyUpload
         endpoint="/apis/uc.api.storage.halo.run/v1alpha1/attachments/-/upload"

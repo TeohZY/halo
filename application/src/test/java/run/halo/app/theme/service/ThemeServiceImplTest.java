@@ -1,8 +1,11 @@
 package run.halo.app.theme.service;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.nio.file.Files.createTempDirectory;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isA;
@@ -22,7 +25,6 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import org.json.JSONException;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
@@ -93,15 +95,15 @@ class ThemeServiceImplTest {
     }
 
     Path prepareTheme(String themeFilename) throws IOException, URISyntaxException {
-        var defaultThemeUri = ResourceUtils.getURL("classpath:themes/" + themeFilename).toURI();
+        var defaultThemeUri =
+                ResourceUtils.getURL("classpath:themes/" + themeFilename).toURI();
         var defaultThemeZipPath = tmpDir.resolve("default.zip");
         zip(Path.of(defaultThemeUri), defaultThemeZipPath);
         return defaultThemeZipPath;
     }
 
     Theme createTheme() {
-        return createTheme(theme -> {
-        });
+        return createTheme(theme -> {});
     }
 
     Theme createTheme(Consumer<Theme> customizer) {
@@ -123,10 +125,16 @@ class ThemeServiceImplTest {
     }
 
     Flux<DataBuffer> content(Path path) {
-        return DataBufferUtils.read(
-            path,
-            DefaultDataBufferFactory.sharedInstance,
-            StreamUtils.BUFFER_SIZE);
+        return DataBufferUtils.read(path, DefaultDataBufferFactory.sharedInstance, StreamUtils.BUFFER_SIZE);
+    }
+
+    Mono<String> joinToString(Flux<DataBuffer> content) {
+        return DataBufferUtils.join(content).map(dataBuffer -> {
+            var bytes = new byte[dataBuffer.readableByteCount()];
+            dataBuffer.read(bytes);
+            DataBufferUtils.release(dataBuffer);
+            return new String(bytes, UTF_8);
+        });
     }
 
     @Nested
@@ -137,7 +145,7 @@ class ThemeServiceImplTest {
             var themeZipPath = prepareTheme("other");
             when(client.fetch(Theme.class, "default")).thenReturn(Mono.empty());
             StepVerifier.create(themeService.upgrade("default", content(themeZipPath)))
-                .verifyError(ServerWebInputException.class);
+                    .verifyError(ServerWebInputException.class);
 
             verify(client).fetch(Theme.class, "default");
         }
@@ -148,12 +156,12 @@ class ThemeServiceImplTest {
 
             var oldTheme = createTheme();
             when(client.fetch(Theme.class, "default"))
-                // for old theme check
-                .thenReturn(Mono.just(oldTheme))
-                // for theme deletion
-                .thenReturn(Mono.just(oldTheme))
-                // for theme deleted check
-                .thenReturn(Mono.empty());
+                    // for old theme check
+                    .thenReturn(Mono.just(oldTheme))
+                    // for theme deletion
+                    .thenReturn(Mono.just(oldTheme))
+                    // for theme deleted check
+                    .thenReturn(Mono.empty());
 
             when(client.get(Theme.class, "default")).thenReturn(Mono.just(oldTheme));
             when(client.update(oldTheme)).thenReturn(Mono.just(createTheme(t -> {
@@ -161,11 +169,11 @@ class ThemeServiceImplTest {
             })));
 
             StepVerifier.create(themeService.upgrade("default", content(themeZipPath)))
-                .consumeNextWith(newTheme -> {
-                    assertEquals("default", newTheme.getMetadata().getName());
-                    assertEquals("New fake theme", newTheme.getSpec().getDisplayName());
-                })
-                .verifyComplete();
+                    .consumeNextWith(newTheme -> {
+                        assertEquals("default", newTheme.getMetadata().getName());
+                        assertEquals("New fake theme", newTheme.getSpec().getDisplayName());
+                    })
+                    .verifyComplete();
 
             verify(client).fetch(Theme.class, "default");
             verify(client, never()).delete(oldTheme);
@@ -175,33 +183,32 @@ class ThemeServiceImplTest {
     @Nested
     class InstallTest {
 
-
         @Test
         void shouldInstallSuccessfully() throws IOException, URISyntaxException {
             var defaultThemeZipPath = prepareTheme("default");
             when(client.create(isA(Theme.class))).thenReturn(Mono.just(createTheme()));
             StepVerifier.create(themeService.install(content(defaultThemeZipPath)))
-                .consumeNextWith(theme -> {
-                    assertEquals("default", theme.getMetadata().getName());
-                    assertEquals("Default", theme.getSpec().getDisplayName());
-                })
-                .verifyComplete();
+                    .consumeNextWith(theme -> {
+                        assertEquals("default", theme.getMetadata().getName());
+                        assertEquals("Default", theme.getSpec().getDisplayName());
+                    })
+                    .verifyComplete();
         }
 
         @Test
         void shouldFailWhenPersistentError() throws IOException, URISyntaxException {
             var defaultThemeZipPath = prepareTheme("default");
-            when(client.create(isA(Theme.class))).thenReturn(
-                Mono.error(() -> new ExtensionException("Failed to create the extension")));
+            when(client.create(isA(Theme.class)))
+                    .thenReturn(Mono.error(() -> new ExtensionException("Failed to create the extension")));
             StepVerifier.create(themeService.install(content(defaultThemeZipPath)))
-                .verifyError(ExtensionException.class);
+                    .verifyError(ExtensionException.class);
         }
 
         @Test
         void shouldFailWhenThemeManifestIsInvalid() throws IOException, URISyntaxException {
             var defaultThemeZipPath = prepareTheme("invalid-missing-manifest");
             StepVerifier.create(themeService.install(content(defaultThemeZipPath)))
-                .verifyError(ThemeInstallationException.class);
+                    .verifyError(ThemeInstallationException.class);
         }
     }
 
@@ -213,15 +220,13 @@ class ThemeServiceImplTest {
         theme.setSpec(new Theme.ThemeSpec());
         theme.getSpec().setDisplayName("Hello");
         theme.getSpec().setSettingName("fake-setting");
-        when(client.fetch(Theme.class, "fake-theme"))
-            .thenReturn(Mono.just(theme));
+        when(client.fetch(Theme.class, "fake-theme")).thenReturn(Mono.just(theme));
         when(client.delete(any(Setting.class))).thenReturn(Mono.empty());
         Setting setting = new Setting();
         setting.setMetadata(new Metadata());
         setting.setSpec(new Setting.SettingSpec());
         setting.getSpec().setForms(List.of());
-        when(client.fetch(Setting.class, "fake-setting"))
-            .thenReturn(Mono.just(setting));
+        when(client.fetch(Setting.class, "fake-setting")).thenReturn(Mono.just(setting));
 
         Path themeWorkDir = themeRoot.get().resolve(theme.getMetadata().getName());
         if (!Files.exists(themeWorkDir)) {
@@ -249,39 +254,22 @@ class ThemeServiceImplTest {
             spec:
               displayName: Fake Theme
             """);
-        when(client.update(any(Theme.class)))
-            .thenAnswer((Answer<Mono<Theme>>) invocation -> {
-                Theme argument = invocation.getArgument(0);
-                return Mono.just(argument);
-            });
+        when(client.update(any(Theme.class))).thenAnswer((Answer<Mono<Theme>>) invocation -> {
+            Theme argument = invocation.getArgument(0);
+            return Mono.just(argument);
+        });
 
         when(client.list(eq(AnnotationSetting.class), any(), eq(null))).thenReturn(Flux.empty());
 
-        themeService.reloadTheme("fake-theme")
-            .as(StepVerifier::create)
-            .consumeNextWith(themeUpdated -> {
-                try {
-                    JSONAssert.assertEquals("""
-                            {
-                                "spec": {
-                                    "displayName": "Fake Theme",
-                                    "version": "*",
-                                    "requires": "*"
-                                },
-                                "apiVersion": "theme.halo.run/v1alpha1",
-                                "kind": "Theme",
-                                "metadata": {
-                                    "name": "fake-theme"
-                                }
-                            }
-                            """,
-                        JsonUtils.objectToJson(themeUpdated),
-                        true);
-                } catch (JSONException e) {
-                    throw new RuntimeException(e);
-                }
-            })
-            .verifyComplete();
+        themeService
+                .reloadTheme("fake-theme")
+                .as(StepVerifier::create)
+                .assertNext(themeUpdated -> {
+                    assertTrue(
+                            themeUpdated.getMetadata().getAnnotations().containsKey(Theme.REQUEST_RELOAD_ANNOTATION));
+                    assertNull(themeUpdated.getSpec().getSettingName());
+                })
+                .verifyComplete();
         // delete fake-setting
         verify(client, times(1)).delete(any(Setting.class));
         // Will not be created
@@ -295,8 +283,7 @@ class ThemeServiceImplTest {
         theme.getMetadata().setName("fake-theme");
         theme.setSpec(new Theme.ThemeSpec());
         theme.getSpec().setDisplayName("Hello");
-        when(client.fetch(Theme.class, "fake-theme"))
-            .thenReturn(Mono.just(theme));
+        when(client.fetch(Theme.class, "fake-theme")).thenReturn(Mono.just(theme));
         Setting setting = new Setting();
         setting.setMetadata(new Metadata());
         setting.setSpec(new Setting.SettingSpec());
@@ -331,76 +318,22 @@ class ThemeServiceImplTest {
               displayName: Fake Theme
               settingName: fake-setting
             """);
-        when(client.update(any(Theme.class)))
-            .thenAnswer((Answer<Mono<Theme>>) invocation -> {
-                Theme argument = invocation.getArgument(0);
-                return Mono.just(argument);
-            });
-
-        when(client.create(any(Unstructured.class)))
-            .thenAnswer((Answer<Mono<Unstructured>>) invocation -> {
-                Unstructured argument = invocation.getArgument(0);
-                JSONAssert.assertEquals("""
-                        {
-                           "spec": {
-                             "forms": [
-                               {
-                                 "group": "sns",
-                                 "label": "社交资料",
-                                 "formSchema": [
-                                   {
-                                     "$el": "h1",
-                                     "children": "Register"
-                                   }
-                                 ]
-                               }
-                             ]
-                           },
-                           "apiVersion": "v1alpha1",
-                           "kind": "Setting",
-                           "metadata": {
-                              "name": "fake-setting",
-                              "labels": {
-                                  "theme.halo.run/theme-name": "fake-theme"
-                              }
-                            }
-                         }
-                        """,
-                    JsonUtils.objectToJson(argument),
-                    true);
-                return Mono.just(invocation.getArgument(0));
-            });
+        when(client.update(any(Theme.class))).thenAnswer((Answer<Mono<Theme>>) invocation -> {
+            Theme argument = invocation.getArgument(0);
+            return Mono.just(argument);
+        });
 
         when(client.list(eq(AnnotationSetting.class), any(), eq(null))).thenReturn(Flux.empty());
 
-        when(client.fetch(eq(Setting.GVK), eq("fake-setting")))
-            .thenReturn(Mono.empty());
-        themeService.reloadTheme("fake-theme")
-            .as(StepVerifier::create)
-            .consumeNextWith(themeUpdated -> {
-                try {
-                    JSONAssert.assertEquals("""
-                            {
-                                "spec": {
-                                    "settingName": "fake-setting",
-                                    "displayName": "Fake Theme",
-                                    "version": "*",
-                                    "requires": "*"
-                                },
-                                "apiVersion": "theme.halo.run/v1alpha1",
-                                "kind": "Theme",
-                                "metadata": {
-                                    "name": "fake-theme"
-                                }
-                            }
-                            """,
-                        JsonUtils.objectToJson(themeUpdated),
-                        true);
-                } catch (JSONException e) {
-                    throw new RuntimeException(e);
-                }
-            })
-            .verifyComplete();
+        themeService
+                .reloadTheme("fake-theme")
+                .as(StepVerifier::create)
+                .assertNext(themeUpdated -> {
+                    assertTrue(
+                            themeUpdated.getMetadata().getAnnotations().containsKey(Theme.REQUEST_RELOAD_ANNOTATION));
+                    assertEquals("fake-setting", themeUpdated.getSpec().getSettingName());
+                })
+                .verifyComplete();
     }
 
     @Test
@@ -412,8 +345,7 @@ class ThemeServiceImplTest {
         theme.getSpec().setSettingName("fake-setting");
         theme.getSpec().setConfigMapName("fake-config");
         theme.getSpec().setDisplayName("Hello");
-        when(client.fetch(Theme.class, "fake-theme"))
-            .thenReturn(Mono.just(theme));
+        when(client.fetch(Theme.class, "fake-theme")).thenReturn(Mono.just(theme));
 
         Setting setting = new Setting();
         setting.setMetadata(new Metadata());
@@ -424,19 +356,16 @@ class ThemeServiceImplTest {
         settingForm.setGroup("basic");
         settingForm.setFormSchema(List.of(formSchemaItem));
         setting.getSpec().setForms(List.of(settingForm));
-        when(client.fetch(eq(Setting.class), eq("fake-setting")))
-            .thenReturn(Mono.just(setting));
+        when(client.fetch(eq(Setting.class), eq("fake-setting"))).thenReturn(Mono.just(setting));
 
         ConfigMap configMap = new ConfigMap();
         configMap.setMetadata(new Metadata());
         configMap.getMetadata().setName("fake-config");
-        when(client.fetch(eq(ConfigMap.class), eq("fake-config")))
-            .thenReturn(Mono.just(configMap));
+        when(client.fetch(eq(ConfigMap.class), eq("fake-config"))).thenReturn(Mono.just(configMap));
 
-        when(client.update(any(ConfigMap.class)))
-            .thenAnswer((Answer<Mono<ConfigMap>>) invocation -> {
-                ConfigMap argument = invocation.getArgument(0);
-                JSONAssert.assertEquals("""
+        when(client.update(any(ConfigMap.class))).thenAnswer((Answer<Mono<ConfigMap>>) invocation -> {
+            ConfigMap argument = invocation.getArgument(0);
+            JSONAssert.assertEquals("""
                         {
                             "data": {
                                 "basic": "{\\"email\\":\\"example@exmple.com\\"}"
@@ -447,21 +376,20 @@ class ThemeServiceImplTest {
                                 "name": "fake-config"
                             }
                         }
-                        """,
-                    JsonUtils.objectToJson(argument),
-                    true);
-                return Mono.just(invocation.getArgument(0));
-            });
+                        """, JsonUtils.objectToJson(argument), true);
+            return Mono.just(invocation.getArgument(0));
+        });
 
-        themeService.resetSettingConfig("fake-theme")
-            .as(StepVerifier::create)
-            .consumeNextWith(next -> {
-                assertThat(next).isNotNull();
-            })
-            .verifyComplete();
+        themeService
+                .resetSettingConfig("fake-theme")
+                .as(StepVerifier::create)
+                .consumeNextWith(next -> {
+                    assertThat(next).isNotNull();
+                })
+                .verifyComplete();
 
         verify(client, times(1))
-            .fetch(eq(Setting.class), eq(setting.getMetadata().getName()));
+                .fetch(eq(Setting.class), eq(setting.getMetadata().getName()));
 
         verify(client, times(1)).fetch(eq(ConfigMap.class), eq("fake-config"));
 
@@ -473,11 +401,11 @@ class ThemeServiceImplTest {
         var themeSetting = new SystemSetting.Theme();
         themeSetting.setActive("fake-theme");
         when(systemConfigFetcher.fetch(SystemSetting.Theme.GROUP, SystemSetting.Theme.class))
-            .thenReturn(Mono.just(themeSetting));
+                .thenReturn(Mono.just(themeSetting));
 
         StepVerifier.create(themeService.fetchSystemSetting())
-            .expectNext(themeSetting)
-            .verifyComplete();
+                .expectNext(themeSetting)
+                .verifyComplete();
     }
 
     @Test
@@ -485,14 +413,14 @@ class ThemeServiceImplTest {
         var themeSetting = new SystemSetting.Theme();
         themeSetting.setActive("fake-theme");
         when(systemConfigFetcher.fetch(SystemSetting.Theme.GROUP, SystemSetting.Theme.class))
-            .thenReturn(Mono.just(themeSetting));
+                .thenReturn(Mono.just(themeSetting));
 
         var theme = createTheme();
         when(client.fetch(Theme.class, "fake-theme")).thenReturn(Mono.just(theme));
 
         StepVerifier.create(themeService.fetchActivatedTheme())
-            .expectNext(theme)
-            .verifyComplete();
+                .expectNext(theme)
+                .verifyComplete();
     }
 
     @Test
@@ -500,10 +428,10 @@ class ThemeServiceImplTest {
         var themeSetting = new SystemSetting.Theme();
         themeSetting.setActive("fake-theme");
         when(systemConfigFetcher.fetch(SystemSetting.Theme.GROUP, SystemSetting.Theme.class))
-            .thenReturn(Mono.just(themeSetting));
+                .thenReturn(Mono.just(themeSetting));
 
         StepVerifier.create(themeService.fetchActivatedThemeName())
-            .expectNext("fake-theme")
-            .verifyComplete();
+                .expectNext("fake-theme")
+                .verifyComplete();
     }
 }

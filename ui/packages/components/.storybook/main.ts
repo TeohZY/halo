@@ -1,5 +1,5 @@
 import { dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, URL } from "node:url";
 import type { StorybookConfig } from "@storybook/vue3-vite";
 
 const config: StorybookConfig = {
@@ -16,10 +16,16 @@ const config: StorybookConfig = {
   },
 
   async viteFinal(config) {
-    const { mergeConfig } = await import("vite");
+    const { mergeConfig } = await import("vite-plus");
 
     return mergeConfig(config, {
       assetsInclude: ["/sb-preview/runtime.js"],
+      resolve: {
+        alias: {
+          "@": fileURLToPath(new URL("../src", import.meta.url)),
+        },
+        dedupe: ["vue", "vue-router"],
+      },
     });
   },
 };

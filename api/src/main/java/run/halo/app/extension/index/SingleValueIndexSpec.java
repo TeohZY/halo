@@ -1,6 +1,6 @@
 package run.halo.app.extension.index;
 
-import org.springframework.lang.Nullable;
+import org.jspecify.annotations.Nullable;
 import run.halo.app.extension.Extension;
 
 /**
@@ -11,16 +11,13 @@ import run.halo.app.extension.Extension;
  * @author johnniang
  * @since 2.22.0
  */
-interface SingleValueIndexSpec<E extends Extension, K extends Comparable<K>>
-    extends ValueIndexSpec<E, K> {
+interface SingleValueIndexSpec<E extends Extension, K extends Comparable<K>> extends ValueIndexSpec<E, K> {
 
     @Nullable
     K getValue(E extension);
 
     static <E extends Extension, K extends Comparable<K>> SingleValueBuilder<E, K> builder(
-        String name, Class<K> keyType
-    ) {
+            String name, Class<K> keyType) {
         return new SingleValueBuilder<>(name, keyType);
     }
-
 }

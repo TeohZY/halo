@@ -1,7 +1,6 @@
 package run.halo.app.plugin;
 
 import java.util.List;
-import org.jspecify.annotations.NonNull;
 import org.pf4j.PluginManager;
 import org.pf4j.PluginWrapper;
 import org.springframework.context.ApplicationContext;
@@ -19,7 +18,6 @@ public interface SpringPluginManager extends PluginManager {
      *
      * @return the root application context
      */
-    @NonNull
     ApplicationContext getRootContext();
 
     /**
@@ -27,19 +25,16 @@ public interface SpringPluginManager extends PluginManager {
      *
      * @return the shared application context
      */
-    @NonNull
     ApplicationContext getSharedContext();
 
     /**
      * Get all dependents recursively.
      *
      * @param pluginId plugin id
-     * @return a list of plugin wrapper. The order of the list is from the farthest dependent to
-     * the nearest dependent.
+     * @return a list of plugin wrapper. The order of the list is from the farthest dependent to the nearest dependent.
      * @since 2.16.0
      */
-    @NonNull
-    List<PluginWrapper> getDependents(@NonNull String pluginId);
+    List<PluginWrapper> getDependents(String pluginId);
 
     /**
      * Gets all started plugins.
@@ -56,5 +51,4 @@ public interface SpringPluginManager extends PluginManager {
      * @return a list of really started plugins. Immutable.
      */
     List<PluginWrapper> startedPlugins();
-
 }

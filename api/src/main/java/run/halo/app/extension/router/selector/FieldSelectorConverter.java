@@ -4,16 +4,14 @@ import static org.apache.commons.lang3.ObjectUtils.defaultIfNull;
 
 import java.util.Set;
 import org.springframework.core.convert.converter.Converter;
-import org.springframework.lang.NonNull;
 import org.springframework.util.CollectionUtils;
 import run.halo.app.extension.index.query.Condition;
 import run.halo.app.extension.index.query.Queries;
 
 public class FieldSelectorConverter implements Converter<SelectorCriteria, Condition> {
 
-    @NonNull
     @Override
-    public Condition convert(@NonNull SelectorCriteria criteria) {
+    public Condition convert(SelectorCriteria criteria) {
         var key = criteria.key();
         // compatible with old field selector
         if ("name".equals(key)) {
@@ -31,8 +29,7 @@ public class FieldSelectorConverter implements Converter<SelectorCriteria, Condi
                 Set<String> valueArr = defaultIfNull(criteria.values(), Set.of());
                 return Queries.in(key, valueArr);
             }
-            default -> throw new IllegalArgumentException(
-                "Unsupported operator: " + criteria.operator());
+            default -> throw new IllegalArgumentException("Unsupported operator: " + criteria.operator());
         }
     }
 

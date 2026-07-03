@@ -7,6 +7,7 @@ import static run.halo.app.extension.index.query.Queries.equal;
 import static run.halo.app.extension.index.query.Queries.isNull;
 import static run.halo.app.theme.router.PageUrlUtils.totalPage;
 
+import java.util.HashMap;
 import java.util.Map;
 import lombok.AllArgsConstructor;
 import org.springframework.http.MediaType;
@@ -27,18 +28,19 @@ import run.halo.app.infra.SystemConfigFetcher;
 import run.halo.app.infra.SystemSetting;
 import run.halo.app.infra.exception.NotFoundException;
 import run.halo.app.infra.utils.PathUtils;
+import run.halo.app.theme.Constant;
 import run.halo.app.theme.DefaultTemplateEnum;
 import run.halo.app.theme.finders.PostFinder;
 import run.halo.app.theme.finders.TagFinder;
 import run.halo.app.theme.finders.vo.ListedPostVo;
 import run.halo.app.theme.finders.vo.TagVo;
+import run.halo.app.theme.router.ModelConst;
 import run.halo.app.theme.router.PageUrlUtils;
 import run.halo.app.theme.router.TitleVisibilityIdentifyCalculator;
 import run.halo.app.theme.router.UrlContextListResult;
 
 /**
- * The {@link TagPostRouteFactory} for generate {@link RouterFunction} specific to the template
- * <code>tag.html</code>.
+ * The {@link TagPostRouteFactory} for generate {@link RouterFunction} specific to the template <code>tag.html</code>.
  *
  * @author guqing
  * @since 2.0.0
@@ -58,62 +60,52 @@ public class TagPostRouteFactory implements RouteFactory {
 
     @Override
     public RouterFunction<ServerResponse> create(String prefix) {
-        return RouterFunctions
-            .route(GET(PathUtils.combinePath(prefix, "/{slug}"))
-                .or(GET(PathUtils.combinePath(prefix, "/{slug}/page/{page:\\d+}")))
-                .and(accept(MediaType.TEXT_HTML)), handlerFunction());
+        return RouterFunctions.route(
+                GET(PathUtils.combinePath(prefix, "/{slug}"))
+                        .or(GET(PathUtils.combinePath(prefix, "/{slug}/page/{page:\\d+}")))
+                        .and(accept(MediaType.TEXT_HTML)),
+                handlerFunction());
     }
 
     private HandlerFunction<ServerResponse> handlerFunction() {
-        return request -> tagBySlug(request.pathVariable("slug"))
-            .flatMap(tagVo -> {
-                int pageNum = pageNumInPathVariable(request);
-                String path = request.path();
-                var postList = postList(tagVo.getMetadata().getName(), pageNum, path)
-                    .doOnNext(list -> list.forEach(postVo ->
-                        postVo.getSpec().setTitle(
-                            titleVisibilityIdentifyCalculator.calculateTitle(
-                                postVo.getSpec().getTitle(),
-                                postVo.getSpec().getVisible(),
-                                localeContextResolver.resolveLocaleContext(request.exchange())
-                                    .getLocale()
-                            )
-                        )
-                    ));
-                return ServerResponse.ok()
-                    .render(DefaultTemplateEnum.TAG.getValue(),
-                        Map.of("name", tagVo.getMetadata().getName(),
-                            "posts", postList,
-                            "tag", tagVo)
-                    );
-            });
+        return request -> tagBySlug(request.pathVariable("slug")).flatMap(tagVo -> {
+            int pageNum = pageNumInPathVariable(request);
+            String path = request.path();
+            var postList = postList(tagVo.getMetadata().getName(), pageNum, path)
+                    .doOnNext(list -> list.forEach(postVo -> postVo.getSpec()
+                            .setTitle(titleVisibilityIdentifyCalculator.calculateTitle(
+                                    postVo.getSpec().getTitle(),
+                                    postVo.getSpec().getVisible(),
+                                    localeContextResolver
+                                            .resolveLocaleContext(request.exchange())
+                                            .getLocale()))));
+            Map<String, Object> model = new HashMap<>();
+            model.put("name", tagVo.getMetadata().getName());
+            model.put("posts", postList);
+            model.put("tag", tagVo);
+            model.put(ModelConst.TEMPLATE_ID, DefaultTemplateEnum.TAG.getValue());
+            model.put(Constant.META_DESCRIPTION_VARIABLE_NAME, tagVo.getSpec().getDescription());
+            return ServerResponse.ok().render(DefaultTemplateEnum.TAG.getValue(), model);
+        });
     }
 
-    private Mono<UrlContextListResult<ListedPostVo>> postList(String name, Integer page,
-        String requestPath) {
+    private Mono<UrlContextListResult<ListedPostVo>> postList(String name, Integer page, String requestPath) {
         return configuredPageSize(environmentFetcher, SystemSetting.Post::getTagPageSize)
-            .flatMap(pageSize -> postFinder.listByTag(page, pageSize, name))
-            .map(list -> new UrlContextListResult.Builder<ListedPostVo>()
-                .listResult(list)
-                .nextUrl(PageUrlUtils.nextPageUrl(requestPath, totalPage(list)))
-                .prevUrl(PageUrlUtils.prevPageUrl(requestPath))
-                .build()
-            );
+                .flatMap(pageSize -> postFinder.listByTag(page, pageSize, name))
+                .map(list -> new UrlContextListResult.Builder<ListedPostVo>()
+                        .listResult(list)
+                        .nextUrl(PageUrlUtils.nextPageUrl(requestPath, totalPage(list)))
+                        .prevUrl(PageUrlUtils.prevPageUrl(requestPath))
+                        .build());
     }
 
     private Mono<TagVo> tagBySlug(String slug) {
         var listOptions = new ListOptions();
-        listOptions.setFieldSelector(FieldSelector.of(
-            and(
-                equal("spec.slug", slug),
-                isNull("metadata.deletionTimestamp")
-            )
-        ));
+        listOptions.setFieldSelector(
+                FieldSelector.of(and(equal("spec.slug", slug), isNull("metadata.deletionTimestamp"))));
         return client.listBy(Tag.class, listOptions, PageRequestImpl.ofSize(1))
-            .mapNotNull(result -> ListResult.first(result).orElse(null))
-            .flatMap(tag -> tagFinder.getByName(tag.getMetadata().getName()))
-            .switchIfEmpty(
-                Mono.error(new NotFoundException("Tag not found with slug: " + slug)));
+                .mapNotNull(result -> ListResult.first(result).orElse(null))
+                .flatMap(tag -> tagFinder.getByName(tag.getMetadata().getName()))
+                .switchIfEmpty(Mono.error(new NotFoundException("Tag not found with slug: " + slug)));
     }
-
 }

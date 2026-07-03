@@ -5,6 +5,7 @@ import static run.halo.app.extension.ExtensionUtil.removeFinalizers;
 import static run.halo.app.extension.MetadataUtil.nullSafeAnnotations;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 import lombok.AllArgsConstructor;
 import org.springframework.context.ApplicationEventPublisher;
@@ -17,6 +18,7 @@ import run.halo.app.core.extension.content.Category;
 import run.halo.app.core.extension.content.Constant;
 import run.halo.app.core.extension.content.Post;
 import run.halo.app.event.post.CategoryHiddenStateChangeEvent;
+import run.halo.app.event.post.CategoryUpdatedEvent;
 import run.halo.app.extension.ExtensionClient;
 import run.halo.app.extension.ExtensionUtil;
 import run.halo.app.extension.ListOptions;
@@ -46,63 +48,61 @@ public class CategoryReconciler implements Reconciler<Reconciler.Request> {
 
     @Override
     public Result reconcile(Request request) {
-        client.fetch(Category.class, request.name())
-            .ifPresent(category -> {
-                if (ExtensionUtil.isDeleted(category)) {
-                    if (removeFinalizers(category.getMetadata(), Set.of(FINALIZER_NAME))) {
-                        refreshHiddenState(category, false);
-                        updateCategoryForPost(category.getMetadata().getName());
-                        client.update(category);
-                    }
-                    return;
+        client.fetch(Category.class, request.name()).ifPresent(category -> {
+            if (ExtensionUtil.isDeleted(category)) {
+                if (removeFinalizers(category.getMetadata(), Set.of(FINALIZER_NAME))) {
+                    refreshHiddenState(category, false);
+                    updateCategoryForPost(category.getMetadata().getName());
+                    client.update(category);
+                    eventPublisher.publishEvent(new CategoryUpdatedEvent(this, category));
                 }
-                addFinalizers(category.getMetadata(), Set.of(FINALIZER_NAME));
+                return;
+            }
+            addFinalizers(category.getMetadata(), Set.of(FINALIZER_NAME));
 
-                populatePermalinkPattern(category);
-                populatePermalink(category);
-                checkHiddenState(category);
+            populatePermalinkPattern(category);
+            populatePermalink(category);
+            checkHiddenState(category);
 
-                client.update(category);
-            });
+            client.update(category);
+            eventPublisher.publishEvent(new CategoryUpdatedEvent(this, category));
+        });
         return Result.doNotRetry();
     }
 
     private void checkHiddenState(Category category) {
-        final boolean hidden = categoryService.isCategoryHidden(category.getMetadata().getName())
-            .blockOptional(BLOCKING_TIMEOUT)
-            .orElse(false);
+        final boolean hidden = categoryService
+                .isCategoryHidden(category.getMetadata().getName())
+                .blockOptional(BLOCKING_TIMEOUT)
+                .orElse(false);
         refreshHiddenState(category, hidden);
     }
 
-    /**
-     * TODO move this logic to before-create/update hook in the future see {@code gh-4343}.
-     */
+    /** TODO move this logic to before-create/update hook in the future see {@code gh-4343}. */
     private void refreshHiddenState(Category category, boolean hidden) {
         category.getSpec().setHideFromList(hidden);
         if (isHiddenStateChanged(category)) {
             publishHiddenStateChangeEvent(category);
         }
-        var children = category.getSpec().getChildren();
-        if (CollectionUtils.isEmpty(children)) {
-            return;
-        }
-        for (String childName : children) {
-            client.fetch(Category.class, childName)
-                .ifPresent(child -> {
-                    child.getSpec().setHideFromList(hidden);
-                    if (isHiddenStateChanged(child)) {
-                        publishHiddenStateChangeEvent(child);
-                    }
-                    client.update(child);
-                });
+        var descendants = categoryService
+                .listDescendants(category.getMetadata().getName())
+                .collectList()
+                .blockOptional(BLOCKING_TIMEOUT)
+                .orElse(List.of());
+        for (Category child : descendants) {
+            child.getSpec().setHideFromList(hidden);
+            if (isHiddenStateChanged(child)) {
+                publishHiddenStateChangeEvent(child);
+            }
+            client.update(child);
         }
     }
 
     private void publishHiddenStateChangeEvent(Category category) {
         var hidden = category.getSpec().isHideFromList();
         nullSafeAnnotations(category).put(Category.LAST_HIDDEN_STATE_ANNO, String.valueOf(hidden));
-        eventPublisher.publishEvent(new CategoryHiddenStateChangeEvent(this,
-            category.getMetadata().getName(), hidden));
+        eventPublisher.publishEvent(
+                new CategoryHiddenStateChangeEvent(this, category.getMetadata().getName(), hidden));
     }
 
     boolean isHiddenStateChanged(Category category) {
@@ -112,9 +112,7 @@ public class CategoryReconciler implements Reconciler<Reconciler.Request> {
 
     @Override
     public Controller setupWith(ControllerBuilder builder) {
-        return builder
-            .extension(new Category())
-            .build();
+        return builder.extension(new Category()).build();
     }
 
     void populatePermalinkPattern(Category category) {
@@ -126,15 +124,16 @@ public class CategoryReconciler implements Reconciler<Reconciler.Request> {
     }
 
     void populatePermalink(Category category) {
-        category.getStatusOrDefault()
-            .setPermalink(categoryPermalinkPolicy.permalink(category));
+        category.getStatusOrDefault().setPermalink(categoryPermalinkPolicy.permalink(category));
     }
 
     private void updateCategoryForPost(String categoryName) {
-        var posts = client.listAll(Post.class, ListOptions.builder()
-            .fieldQuery(Queries.equal("spec.categories", categoryName))
-            .build(), Sort.by("metadata.creationTimestamp", "metadata.name")
-        );
+        var posts = client.listAll(
+                Post.class,
+                ListOptions.builder()
+                        .fieldQuery(Queries.equal("spec.categories", categoryName))
+                        .build(),
+                Sort.by("metadata.creationTimestamp", "metadata.name"));
         for (Post post : posts) {
             var categoryNames = post.getSpec().getCategories();
             if (!CollectionUtils.isEmpty(categoryNames)) {

@@ -3,16 +3,14 @@ package run.halo.app.content;
 import static org.springdoc.core.fn.builders.parameter.Builder.parameterBuilder;
 import static run.halo.app.core.extension.content.Post.PUBLISHED_LABEL;
 import static run.halo.app.core.extension.content.Post.PostPhase.PENDING_APPROVAL;
-import static run.halo.app.extension.index.query.Queries.contains;
-import static run.halo.app.extension.index.query.Queries.equal;
-import static run.halo.app.extension.index.query.Queries.or;
+import static run.halo.app.extension.index.query.Queries.*;
 import static run.halo.app.extension.router.QueryParamBuildUtil.sortParameter;
 
 import io.swagger.v3.oas.annotations.enums.ParameterIn;
 import java.util.Optional;
 import org.apache.commons.lang3.StringUtils;
+import org.jspecify.annotations.Nullable;
 import org.springdoc.core.fn.builders.operation.Builder;
-import org.springframework.lang.Nullable;
 import org.springframework.web.reactive.function.server.ServerRequest;
 import run.halo.app.core.extension.content.Post;
 import run.halo.app.extension.ListOptions;
@@ -27,7 +25,7 @@ import run.halo.app.extension.router.SortableRequest;
  */
 public class PostQuery extends SortableRequest {
 
-    private final String username;
+    private final @Nullable String username;
 
     public PostQuery(ServerRequest request) {
         this(request, null);
@@ -38,19 +36,16 @@ public class PostQuery extends SortableRequest {
         this.username = username;
     }
 
-    @Nullable
-    public String getPublishPhase() {
+    public @Nullable String getPublishPhase() {
         return queryParams.getFirst("publishPhase");
     }
 
-    @Nullable
-    public String getCategoryWithChildren() {
+    public @Nullable String getCategoryWithChildren() {
         var value = queryParams.getFirst("categoryWithChildren");
         return StringUtils.defaultIfBlank(value, null);
     }
 
-    @Nullable
-    public String getKeyword() {
+    public @Nullable String getKeyword() {
         return StringUtils.defaultIfBlank(queryParams.getFirst("keyword"), null);
     }
 
@@ -64,32 +59,30 @@ public class PostQuery extends SortableRequest {
         var builder = ListOptions.builder(super.toListOptions());
 
         Optional.ofNullable(getKeyword())
-            .filter(StringUtils::isNotBlank)
-            .ifPresent(keyword -> builder.andQuery(or(
-                contains("status.excerpt", keyword),
-                contains("spec.slug", keyword),
-                contains("spec.title", keyword)
-            )));
+                .filter(StringUtils::isNotBlank)
+                .ifPresent(keyword -> builder.andQuery(or(
+                        contains("status.excerpt", keyword),
+                        contains("spec.slug", keyword),
+                        contains("spec.title", keyword))));
 
         Optional.ofNullable(getPublishPhase())
-            .filter(StringUtils::isNotBlank)
-            .map(Post.PostPhase::from)
-            .ifPresent(phase -> {
-                if (PENDING_APPROVAL.equals(phase)) {
-                    builder.andQuery(equal("status.phase", phase.name()));
-                }
-                var labelSelector = builder.labelSelector();
-                Optional.of(phase)
-                    .filter(Post.PostPhase.PUBLISHED::equals)
-                    .ifPresentOrElse(
-                        published -> labelSelector.eq(PUBLISHED_LABEL, Boolean.TRUE.toString()),
-                        () -> labelSelector.notEq(PUBLISHED_LABEL, Boolean.TRUE.toString())
-                    );
-            });
+                .filter(StringUtils::isNotBlank)
+                .map(Post.PostPhase::from)
+                .ifPresent(phase -> {
+                    if (PENDING_APPROVAL.equals(phase)) {
+                        builder.andQuery(equal("status.phase", phase.name()));
+                    }
+                    var labelSelector = builder.labelSelector();
+                    Optional.of(phase)
+                            .filter(Post.PostPhase.PUBLISHED::equals)
+                            .ifPresentOrElse(
+                                    published -> labelSelector.eq(PUBLISHED_LABEL, Boolean.TRUE.toString()),
+                                    () -> labelSelector.notEq(PUBLISHED_LABEL, Boolean.TRUE.toString()));
+                });
 
         Optional.ofNullable(username)
-            .filter(StringUtils::isNotBlank)
-            .ifPresent(username -> builder.andQuery(equal("spec.owner", username)));
+                .filter(StringUtils::isNotBlank)
+                .ifPresent(username -> builder.andQuery(equal("spec.owner", username)));
 
         return builder.build();
     }
@@ -97,23 +90,25 @@ public class PostQuery extends SortableRequest {
     public static void buildParameters(Builder builder) {
         IListRequest.buildParameters(builder);
         builder.parameter(sortParameter())
-            .parameter(parameterBuilder()
-                .in(ParameterIn.QUERY)
-                .name("publishPhase")
-                .description("Posts filtered by publish phase.")
-                .implementation(Post.PostPhase.class)
-                .required(false))
-            .parameter(parameterBuilder()
-                .in(ParameterIn.QUERY)
-                .name("keyword")
-                .description("Posts filtered by keyword.")
-                .implementation(String.class)
-                .required(false))
-            .parameter(parameterBuilder()
-                .in(ParameterIn.QUERY)
-                .name("categoryWithChildren")
-                .description("Posts filtered by category including sub-categories.")
-                .implementation(String.class)
-                .required(false));
+                .parameter(parameterBuilder()
+                        .in(ParameterIn.QUERY)
+                        .name("publishPhase")
+                        .description("Filter posts by publish phase. Supported values follow PostPhase, such as DRAFT, "
+                                + "PENDING_APPROVAL, PUBLISHED, or FAILED.")
+                        .implementation(Post.PostPhase.class)
+                        .required(false))
+                .parameter(parameterBuilder()
+                        .in(ParameterIn.QUERY)
+                        .name("keyword")
+                        .description("Keyword used to match post title, slug, or excerpt.")
+                        .implementation(String.class)
+                        .required(false))
+                .parameter(parameterBuilder()
+                        .in(ParameterIn.QUERY)
+                        .name("categoryWithChildren")
+                        .description("Category metadata name used to include posts in that category and its child "
+                                + "categories.")
+                        .implementation(String.class)
+                        .required(false));
     }
 }

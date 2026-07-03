@@ -4,7 +4,6 @@ import { useThemeStore } from "@console/stores/theme";
 import type { Setting, SettingForm, Theme } from "@halo-dev/api-client";
 import { consoleApiClient } from "@halo-dev/api-client";
 import {
-  Dialog,
   IconExchange,
   IconEye,
   IconListSettings,
@@ -19,7 +18,6 @@ import {
 } from "@halo-dev/components";
 import { utils } from "@halo-dev/ui-shared";
 import { useQuery } from "@tanstack/vue-query";
-import { useRouteQuery } from "@vueuse/router";
 import { cloneDeep } from "es-toolkit";
 import { storeToRefs } from "pinia";
 import {
@@ -33,7 +31,12 @@ import {
   type Ref,
 } from "vue";
 import { useI18n } from "vue-i18n";
-import { useRoute, useRouter } from "vue-router";
+import {
+  isNavigationFailure,
+  NavigationFailureType,
+  useRoute,
+  useRouter,
+} from "vue-router";
 import ThemePreviewModal from "../components/preview/ThemePreviewModal.vue";
 import ThemeListModal from "../components/ThemeListModal.vue";
 import { useThemeLifeCycle } from "../composables/use-theme";
@@ -117,11 +120,17 @@ const { data: setting } = useQuery<Setting>({
 
 provide<Ref<Setting | undefined>>("setting", setting);
 
-const handleTabChange = (id: string | number) => {
+const handleTabChange = async (id: string | number) => {
   const tab = tabs.value.find((item) => item.id === id);
   if (tab) {
+    const navigationResult = await router.push(tab.route);
+    if (
+      isNavigationFailure(navigationResult, NavigationFailureType.aborted) ||
+      isNavigationFailure(navigationResult, NavigationFailureType.cancelled)
+    ) {
+      return;
+    }
     activeTab.value = tab.id;
-    router.push(tab.route);
   }
 };
 
@@ -137,7 +146,7 @@ const handleTriggerTabChange = () => {
       activeTab.value = tab.id;
       return;
     }
-    handleTabChange(tabs.value[0].id);
+    void handleTabChange(tabs.value[0].id);
     return;
   }
 
@@ -147,7 +156,7 @@ const handleTriggerTabChange = () => {
 
 const onSelectTheme = () => {
   tabs.value = cloneDeep(initialTabs);
-  handleTabChange(tabs.value[0].id);
+  void handleTabChange(tabs.value[0].id);
 };
 
 onMounted(() => {
@@ -160,27 +169,6 @@ onMounted(() => {
 
 watch([() => route.name, () => route.params], async () => {
   handleTriggerTabChange();
-});
-
-// handle remote download url from route
-const remoteDownloadUrl = useRouteQuery<string | null>("remote-download-url");
-onMounted(() => {
-  if (remoteDownloadUrl.value) {
-    Dialog.warning({
-      title: t("core.theme.operations.remote_download.title"),
-      description: t("core.theme.operations.remote_download.description", {
-        url: remoteDownloadUrl.value,
-      }),
-      confirmText: t("core.common.buttons.download"),
-      cancelText: t("core.common.buttons.cancel"),
-      onConfirm() {
-        themesModal.value = true;
-      },
-      onCancel() {
-        remoteDownloadUrl.value = null;
-      },
-    });
-  }
 });
 </script>
 <template>
@@ -195,7 +183,7 @@ onMounted(() => {
           v-permission="['system:themes:manage']"
           size="sm"
           type="primary"
-          @click="handleActiveTheme()"
+          @click="handleActiveTheme(true)"
         >
           {{ $t("core.common.buttons.activate") }}
         </VButton>
@@ -239,7 +227,7 @@ onMounted(() => {
         <VCard :body-class="['!p-0', '!overflow-visible']">
           <template #header>
             <VTabbar
-              v-model:active-id="activeTab"
+              :active-id="activeTab"
               :items="tabs.map((item) => ({ id: item.id, label: item.label }))"
               class="w-full !rounded-none"
               type="outline"
@@ -247,10 +235,7 @@ onMounted(() => {
             ></VTabbar>
           </template>
           <div class="rounded-b-base bg-white">
-            <RouterView
-              :key="`${selectedTheme?.metadata.name}-${activeTab}`"
-              v-slot="{ Component }"
-            >
+            <RouterView v-slot="{ Component }">
               <template v-if="Component">
                 <Suspense>
                   <component :is="Component"></component>

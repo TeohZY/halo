@@ -58,6 +58,7 @@
 - `secret`: 用于选择或者管理密钥（Secret）
   - 参数
     1. requiredKeys：用于确认所需密钥的字段名称，数组类型，每个元素包含 `key` 和 `help` 两个属性。
+    2. descriptionPreset：创建密钥时的备注预设。打开创建弹窗时会预填为 `备注预设 - 当前时间`，用户可编辑后保存。
 - `select`: 自定义的选择器组件，用于在备选项中选择一个或多个选项
   - 参数
     1. `options`：静态数据源。当 `action` 或 `remote` 存在时，此参数无效。
@@ -100,9 +101,44 @@ const postName = ref("");
   label: 底部菜单组
 ```
 
+## 插件扩展 FormKit 输入组件
+
+插件可以通过 UI 入口中的 `formkit.inputs` 注册自己的 FormKit 输入类型。注册后的类型可以在插件的 FormKit Schema 中通过 `$formkit` 使用，并会走 FormKit 的输入生命周期。
+
+```ts
+import { createInput } from "@formkit/vue";
+import { definePlugin } from "@halo-dev/ui-shared";
+import { defineAsyncComponent } from "vue";
+
+export default definePlugin({
+  formkit: {
+    inputs: {
+      myPluginInput: createInput(
+        defineAsyncComponent(() => import("./MyPluginInput.vue"))
+      ),
+    },
+  },
+});
+```
+
+```yaml
+- $formkit: myPluginInput
+  name: customField
+  label: 自定义字段
+```
+
+`formkit.inputs` 仅支持同步对象。如果输入组件需要懒加载，可以在输入定义内部使用 `defineAsyncComponent`。
+
+如果插件注册的输入类型名称与 Halo 内置类型或更早加载的插件类型重复，Halo 会保留已有类型，跳过冲突的插件类型并在控制台输出警告。建议插件使用带插件标识的类型名称，例如 `myPluginInput`，以降低冲突概率。
+
 ### select
 
 select 是一个选择器类型的输入组件，使用者可以从一批待选数据中选择一个或多个选项。它支持单选、多选操作，并且支持静态数据及远程动态数据加载等多种方式。
+
+选项对象至少需要包含 `label` 与 `value`。除此之外，还可以提供 `icon` 与 `description` 用于增强下拉选项展示：
+
+- `icon`：图标图片地址，会以 `<img>` 渲染。
+- `description`：显示在 `label` 下方的说明文字，同时参与本地静态选项搜索。
 
 #### 在 Vue SFC 中以组件形式使用
 
@@ -122,8 +158,18 @@ select 是一个选择器类型的输入组件，使用者可以从一批待选�
     multiple
     searchable
     :options="[
-      { label: 'China', value: 'China' },
-      { label: 'USA', value: 'USA' },
+      {
+        label: 'China',
+        value: 'China',
+        icon: '/assets/flags/cn.svg',
+        description: 'Chinese cuisine with rich regional styles',
+      },
+      {
+        label: 'USA',
+        value: 'USA',
+        icon: '/assets/flags/us.svg',
+        description: 'American cuisine with diverse influences',
+      },
       { label: 'Japan', value: 'Japan' },
       { label: 'Korea', value: 'Korea' },
       { label: 'France', value: 'France' },
@@ -160,6 +206,8 @@ const handleSelectPostAuthorRemote = {
       options: data.items.map((item) => ({
         label: item.user.spec.displayName,
         value: item.user.metadata.name,
+        icon: item.user.spec.avatar,
+        description: item.user.spec.email,
       })),
       total: data.total,
       page: data.page,
@@ -200,8 +248,12 @@ const handleSelectPostAuthorRemote = {
   options:
     - label: China
       value: cn
+      icon: /assets/flags/cn.svg
+      description: Chinese cuisine with rich regional styles
     - label: France
       value: fr
+      icon: /assets/flags/fr.svg
+      description: French cuisine and bakery classics
     - label: Germany
       value: de
     - label: Spain
@@ -232,6 +284,8 @@ const handleSelectPostAuthorRemote = {
     itemsField: items
     labelField: post.spec.title
     valueField: post.metadata.name
+    iconField: post.spec.cover
+    descriptionField: post.status.excerpt
     fieldSelectorKey: metadata.name
 ```
 

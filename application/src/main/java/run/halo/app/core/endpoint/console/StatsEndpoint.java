@@ -1,10 +1,10 @@
 package run.halo.app.core.endpoint.console;
 
+import static io.swagger.v3.oas.annotations.media.Schema.RequiredMode.REQUIRED;
 import static org.springdoc.core.fn.builders.apiresponse.Builder.responseBuilder;
-import static run.halo.app.extension.index.query.Queries.and;
-import static run.halo.app.extension.index.query.Queries.equal;
-import static run.halo.app.extension.index.query.Queries.isNull;
+import static run.halo.app.extension.index.query.Queries.*;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import org.springdoc.webflux.core.fn.SpringdocRouteBuilder;
 import org.springframework.data.domain.Sort;
@@ -39,74 +39,88 @@ public class StatsEndpoint implements CustomEndpoint {
     public RouterFunction<ServerResponse> endpoint() {
         var tag = "SystemV1alpha1Console";
         return SpringdocRouteBuilder.route()
-            .GET("stats", this::getStats, builder -> builder.operationId("getStats")
-                .description("Get stats.")
-                .tag(tag)
-                .response(responseBuilder()
-                    .implementation(DashboardStats.class)
-                )
-            )
-            .build();
+                .GET(
+                        "stats",
+                        this::getStats,
+                        builder -> builder.operationId("getStats")
+                                .description("Get stats.")
+                                .tag(tag)
+                                .response(responseBuilder().implementation(DashboardStats.class)))
+                .build();
     }
 
     Mono<ServerResponse> getStats(ServerRequest request) {
         var stats = DashboardStats.emptyStats();
         Mono<Void> setFromCounters = client.listAll(
-                Counter.class, ListOptions.builder().build(), Sort.unsorted()
-            )
-            .doOnNext(counter -> {
-                var visit = counter.getVisit();
-                if (visit != null) {
-                    stats.setVisits(stats.getVisits() + visit);
-                }
-                var totalComment = counter.getTotalComment();
-                if (totalComment != null) {
-                    stats.setComments(stats.getComments() + totalComment);
-                }
-                var approvedComment = counter.getApprovedComment();
-                if (approvedComment != null) {
-                    stats.setApprovedComments(
-                        stats.getApprovedComments() + approvedComment
-                    );
-                }
-                var upvote = counter.getUpvote();
-                if (upvote != null) {
-                    stats.setUpvotes(stats.getUpvotes() + upvote);
-                }
-            })
-            .then();
+                        Counter.class, ListOptions.builder().build(), Sort.unsorted())
+                .doOnNext(counter -> {
+                    var visit = counter.getVisit();
+                    if (visit != null) {
+                        stats.setVisits(stats.getVisits() + visit);
+                    }
+                    var totalComment = counter.getTotalComment();
+                    if (totalComment != null) {
+                        stats.setComments(stats.getComments() + totalComment);
+                    }
+                    var approvedComment = counter.getApprovedComment();
+                    if (approvedComment != null) {
+                        stats.setApprovedComments(stats.getApprovedComments() + approvedComment);
+                    }
+                    var upvote = counter.getUpvote();
+                    if (upvote != null) {
+                        stats.setUpvotes(stats.getUpvotes() + upvote);
+                    }
+                })
+                .then();
 
-        Mono<Void> setUsers = client.countBy(User.class, ListOptions.builder()
-                .labelSelector()
-                .notEq(User.HIDDEN_USER_LABEL, "true")
-                .end()
-                .andQuery(isNull("metadata.deletionTimestamp"))
-                .build()
-            )
-            .doOnNext(stats::setUsers)
-            .then();
-        Mono<Void> setPosts = client.countBy(Post.class, ListOptions.builder()
-                .andQuery(and(
-                    isNull("metadata.deletionTimestamp"),
-                    equal("spec.deleted", "false")
-                ))
-                .build()
-            )
-            .doOnNext(stats::setPosts)
-            .then();
+        Mono<Void> setUsers = client.countBy(
+                        User.class,
+                        ListOptions.builder()
+                                .labelSelector()
+                                .notEq(User.HIDDEN_USER_LABEL, "true")
+                                .end()
+                                .andQuery(isNull("metadata.deletionTimestamp"))
+                                .build())
+                .doOnNext(stats::setUsers)
+                .then();
+        Mono<Void> setPosts = client.countBy(
+                        Post.class,
+                        ListOptions.builder()
+                                .andQuery(and(isNull("metadata.deletionTimestamp"), equal("spec.deleted", "false")))
+                                .build())
+                .doOnNext(stats::setPosts)
+                .then();
 
         return Mono.when(setFromCounters, setUsers, setPosts)
-            .thenReturn(stats)
-            .flatMap(body -> ServerResponse.ok().bodyValue(body));
+                .thenReturn(stats)
+                .flatMap(body -> ServerResponse.ok().bodyValue(body));
     }
 
+    /** Dashboard statistics for the console overview. */
     @Data
     public static class DashboardStats {
+        /** Total visit count. */
+        @Schema(requiredMode = REQUIRED)
         private long visits;
+
+        /** Total comment count. */
+        @Schema(requiredMode = REQUIRED)
         private long comments;
+
+        /** Approved comment count. */
+        @Schema(requiredMode = REQUIRED)
         private long approvedComments;
+
+        /** Total upvote count. */
+        @Schema(requiredMode = REQUIRED)
         private long upvotes;
+
+        /** Total user count. */
+        @Schema(requiredMode = REQUIRED)
         private long users;
+
+        /** Total non-deleted post count. */
+        @Schema(requiredMode = REQUIRED)
         private long posts;
 
         /**

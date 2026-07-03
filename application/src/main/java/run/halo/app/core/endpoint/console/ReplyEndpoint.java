@@ -11,12 +11,11 @@ import reactor.core.publisher.Mono;
 import run.halo.app.content.comment.ListedReply;
 import run.halo.app.content.comment.ReplyQuery;
 import run.halo.app.content.comment.ReplyService;
-import run.halo.app.core.extension.content.Reply;
 import run.halo.app.core.extension.endpoint.CustomEndpoint;
 import run.halo.app.extension.ListResult;
 
 /**
- * Endpoint for managing {@link Reply}.
+ * Console endpoint for listing replies under a comment.
  *
  * @author guqing
  * @since 2.0.0
@@ -34,22 +33,22 @@ public class ReplyEndpoint implements CustomEndpoint {
     public RouterFunction<ServerResponse> endpoint() {
         var tag = "ReplyV1alpha1Console";
         return SpringdocRouteBuilder.route()
-            .GET("replies", this::listReplies, builder -> {
+                .GET("replies", this::listReplies, builder -> {
                     builder.operationId("ListReplies")
-                        .description("List replies.")
-                        .tag(tag)
-                        .response(responseBuilder()
-                            .implementation(ListResult.generateGenericClass(ListedReply.class))
-                        );
+                            .description("List replies for a comment with pagination, sorting, labels, and field "
+                                    + "selectors.")
+                            .tag(tag)
+                            .response(responseBuilder()
+                                    .implementation(ListResult.generateGenericClass(ListedReply.class)));
                     ReplyQuery.buildParameters(builder);
-                }
-            )
-            .build();
+                })
+                .build();
     }
 
     Mono<ServerResponse> listReplies(ServerRequest request) {
         ReplyQuery replyQuery = new ReplyQuery(request.exchange());
-        return replyService.list(replyQuery)
-            .flatMap(listedReplies -> ServerResponse.ok().bodyValue(listedReplies));
+        return replyService
+                .list(replyQuery)
+                .flatMap(listedReplies -> ServerResponse.ok().bodyValue(listedReplies));
     }
 }

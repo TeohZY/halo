@@ -7,7 +7,6 @@ import lombok.Getter;
 import org.springframework.core.convert.ConversionService;
 import org.springframework.data.relational.core.sql.Visitable;
 import org.springframework.data.relational.core.sql.Visitor;
-import org.springframework.lang.NonNull;
 import run.halo.app.extension.Extension;
 import run.halo.app.extension.index.Indices;
 import run.halo.app.extension.index.LabelIndexQuery;
@@ -41,7 +40,6 @@ public class QueryVisitor<E extends Extension> implements Visitor {
         result.addAll(visitor.getResult());
     }
 
-    @NonNull
     public Set<String> getResult() {
         return result;
     }
@@ -56,7 +54,7 @@ public class QueryVisitor<E extends Extension> implements Visitor {
         }
 
         @Override
-        public void enter(@NonNull Visitable segment) {
+        public void enter(Visitable segment) {
             switch (segment) {
                 case And(var left, var right) ->
                     // delegate to AndCondition for backward compatibility
@@ -99,31 +97,22 @@ public class QueryVisitor<E extends Extension> implements Visitor {
                     }
                     condition.not().visit(this);
                 }
-                case EqualCondition(var indexName, var key) ->
-                    result.addAll(equalQuery(indexName, key, false));
-                case NotEqualCondition(var indexName, var key) ->
-                    result.addAll(equalQuery(indexName, key, true));
-                case InCondition(var indexName, var keys) ->
-                    result.addAll(inQuery(indexName, keys, false));
-                case NotInCondition(var indexName, var keys) ->
-                    result.addAll(inQuery(indexName, keys, true));
+                case EqualCondition(var indexName, var key) -> result.addAll(equalQuery(indexName, key, false));
+                case NotEqualCondition(var indexName, var key) -> result.addAll(equalQuery(indexName, key, true));
+                case InCondition(var indexName, var keys) -> result.addAll(inQuery(indexName, keys, false));
+                case NotInCondition(var indexName, var keys) -> result.addAll(inQuery(indexName, keys, true));
                 case LessThanCondition(var indexName, var upperBound, var inclusive) ->
                     result.addAll(lessThanQuery(indexName, upperBound, inclusive, false));
                 case GreaterThanCondition(var indexName, var lowerBound, var inclusive) ->
                     result.addAll(lessThanQuery(indexName, lowerBound, inclusive, true));
-                case BetweenCondition bc -> result.addAll(betweenQuery(
-                        bc.indexName(), bc.fromKey(), bc.fromInclusive(), bc.toKey(),
-                        bc.toInclusive(), false
-                    )
-                );
-                case NotBetweenCondition nbc -> result.addAll(betweenQuery(
-                    nbc.indexName(), nbc.fromKey(), nbc.fromInclusive(), nbc.toKey(),
-                    nbc.toInclusive(), true
-                ));
-                case IsNullCondition(var indexName) ->
-                    result.addAll(isNullQuery(indexName, false));
-                case IsNotNullCondition(var indexName) ->
-                    result.addAll(isNullQuery(indexName, true));
+                case BetweenCondition bc ->
+                    result.addAll(betweenQuery(
+                            bc.indexName(), bc.fromKey(), bc.fromInclusive(), bc.toKey(), bc.toInclusive(), false));
+                case NotBetweenCondition nbc ->
+                    result.addAll(betweenQuery(
+                            nbc.indexName(), nbc.fromKey(), nbc.fromInclusive(), nbc.toKey(), nbc.toInclusive(), true));
+                case IsNullCondition(var indexName) -> result.addAll(isNullQuery(indexName, false));
+                case IsNotNullCondition(var indexName) -> result.addAll(isNullQuery(indexName, true));
                 case StringContainsCondition(var indexName, var keyword) ->
                     result.addAll(stringContainsQuery(indexName, keyword, false));
                 case StringNotContainsCondition(var indexName, var keyword) ->
@@ -138,8 +127,7 @@ public class QueryVisitor<E extends Extension> implements Visitor {
                     result.addAll(stringEndsWithQuery(indexName, suffix, true));
                 case AllCondition(var indexName) -> result.addAll(allQuery(indexName, false));
                 case NoneCondition(var indexName) -> result.addAll(allQuery(indexName, true));
-                case LabelExistsCondition(var labelKey) ->
-                    result.addAll(labelExistsQuery(labelKey));
+                case LabelExistsCondition(var labelKey) -> result.addAll(labelExistsQuery(labelKey));
                 case LabelNotExistsCondition(var labelKey) -> {
                     // To get all extensions that do not have the label, we get all extensions
                     result.addAll(allQuery("metadata.name", false));
@@ -156,13 +144,11 @@ public class QueryVisitor<E extends Extension> implements Visitor {
                     result.addAll(labelInQuery(labelKey, labelValues, false));
                 case LabelNotInCondition(var labelKey, var labelValues) ->
                     result.addAll(labelInQuery(labelKey, labelValues, true));
-                default -> {
-                }
+                default -> {}
             }
         }
 
-        private Set<String> labelInQuery(String labelKey, Collection<String> labelValues,
-            boolean negated) {
+        private Set<String> labelInQuery(String labelKey, Collection<String> labelValues, boolean negated) {
             var index = this.getLabelIndexQuery();
             if (negated) {
                 return index.notIn(labelKey, labelValues);
@@ -170,8 +156,7 @@ public class QueryVisitor<E extends Extension> implements Visitor {
             return index.in(labelKey, labelValues);
         }
 
-        private Set<String> labelEqualsQuery(String labelKey, String labelValue,
-            boolean negated) {
+        private Set<String> labelEqualsQuery(String labelKey, String labelValue, boolean negated) {
             var index = this.getLabelIndexQuery();
             if (negated) {
                 return index.notEqual(labelKey, labelValue);
@@ -200,8 +185,7 @@ public class QueryVisitor<E extends Extension> implements Visitor {
             return index.all();
         }
 
-        private Set<String> stringStartsWithQuery(String indexName, String prefix,
-            boolean negated) {
+        private Set<String> stringStartsWithQuery(String indexName, String prefix, boolean negated) {
             var index = getValueIndexQuery(indexName);
             if (negated) {
                 return index.stringNotStartsWith(prefix);
@@ -217,8 +201,7 @@ public class QueryVisitor<E extends Extension> implements Visitor {
             return index.stringContains(keyword);
         }
 
-        private <K extends Comparable<K>> Set<String> isNullQuery(String indexName,
-            boolean negated) {
+        private <K extends Comparable<K>> Set<String> isNullQuery(String indexName, boolean negated) {
             var index = this.<K>getValueIndexQuery(indexName);
             if (negated) {
                 return index.isNotNull();
@@ -226,63 +209,53 @@ public class QueryVisitor<E extends Extension> implements Visitor {
             return index.isNull();
         }
 
-        private <K extends Comparable<K>> Set<String> betweenQuery(String indexName, Object fromKey,
-            boolean fromInclusive,
-            Object toKey, boolean toInclusive, boolean negated) {
+        private <K extends Comparable<K>> Set<String> betweenQuery(
+                String indexName,
+                Object fromKey,
+                boolean fromInclusive,
+                Object toKey,
+                boolean toInclusive,
+                boolean negated) {
             var index = this.<K>getValueIndexQuery(indexName);
             if (!conversionService.canConvert(fromKey.getClass(), index.getKeyType())) {
                 throw new IllegalArgumentException(
-                    "Cannot convert key: " + fromKey + " to type: " + index.getKeyType()
-                );
+                        "Cannot convert key: " + fromKey + " to type: " + index.getKeyType());
             }
             if (!conversionService.canConvert(toKey.getClass(), index.getKeyType())) {
-                throw new IllegalArgumentException(
-                    "Cannot convert key: " + toKey + " to type: " + index.getKeyType()
-                );
+                throw new IllegalArgumentException("Cannot convert key: " + toKey + " to type: " + index.getKeyType());
             }
             if (negated) {
                 return index.notBetween(
-                    conversionService.convert(fromKey, index.getKeyType()),
-                    fromInclusive,
-                    conversionService.convert(toKey, index.getKeyType()),
-                    toInclusive
-                );
+                        conversionService.convert(fromKey, index.getKeyType()),
+                        fromInclusive,
+                        conversionService.convert(toKey, index.getKeyType()),
+                        toInclusive);
             } else {
                 return index.between(
-                    conversionService.convert(fromKey, index.getKeyType()),
-                    fromInclusive,
-                    conversionService.convert(toKey, index.getKeyType()),
-                    toInclusive
-                );
+                        conversionService.convert(fromKey, index.getKeyType()),
+                        fromInclusive,
+                        conversionService.convert(toKey, index.getKeyType()),
+                        toInclusive);
             }
         }
 
-        private <K extends Comparable<K>> Set<String> lessThanQuery(String indexName, Object bound,
-            boolean inclusive,
-            boolean negated) {
+        private <K extends Comparable<K>> Set<String> lessThanQuery(
+                String indexName, Object bound, boolean inclusive, boolean negated) {
             var index = this.<K>getValueIndexQuery(indexName);
             if (!conversionService.canConvert(bound.getClass(), index.getKeyType())) {
-                throw new IllegalArgumentException(
-                    "Cannot convert key: " + bound + " to type: " + index.getKeyType()
-                );
+                throw new IllegalArgumentException("Cannot convert key: " + bound + " to type: " + index.getKeyType());
             }
             if (negated) {
-                return index.greaterThan(
-                    conversionService.convert(bound, index.getKeyType()), inclusive
-                );
+                return index.greaterThan(conversionService.convert(bound, index.getKeyType()), inclusive);
             } else {
-                return index.lessThan(conversionService.convert(bound, index.getKeyType()),
-                    inclusive);
+                return index.lessThan(conversionService.convert(bound, index.getKeyType()), inclusive);
             }
         }
 
-        private <K extends Comparable<K>> Set<String> equalQuery(String indexName, Object key,
-            boolean negated) {
+        private <K extends Comparable<K>> Set<String> equalQuery(String indexName, Object key, boolean negated) {
             var index = this.<K>getValueIndexQuery(indexName);
             if (!conversionService.canConvert(key.getClass(), index.getKeyType())) {
-                throw new IllegalArgumentException(
-                    "Cannot convert key: " + key + " to type: " + index.getKeyType()
-                );
+                throw new IllegalArgumentException("Cannot convert key: " + key + " to type: " + index.getKeyType());
             }
             if (negated) {
                 return index.notEqual(conversionService.convert(key, index.getKeyType()));
@@ -292,19 +265,17 @@ public class QueryVisitor<E extends Extension> implements Visitor {
         }
 
         private <K extends Comparable<K>> Set<String> inQuery(
-            String indexName, Collection<Object> keys, boolean negated
-        ) {
+                String indexName, Collection<Object> keys, boolean negated) {
             var index = this.<K>getValueIndexQuery(indexName);
             var convertedKeys = keys.stream()
-                .map(key -> {
-                    if (!conversionService.canConvert(key.getClass(), index.getKeyType())) {
-                        throw new IllegalArgumentException(
-                            "Cannot convert key: " + key + " to type: " + index.getKeyType()
-                        );
-                    }
-                    return conversionService.convert(key, index.getKeyType());
-                })
-                .toList();
+                    .map(key -> {
+                        if (!conversionService.canConvert(key.getClass(), index.getKeyType())) {
+                            throw new IllegalArgumentException(
+                                    "Cannot convert key: " + key + " to type: " + index.getKeyType());
+                        }
+                        return conversionService.convert(key, index.getKeyType());
+                    })
+                    .toList();
             if (negated) {
                 return index.notIn(convertedKeys);
             } else {

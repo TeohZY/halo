@@ -1,17 +1,13 @@
 package run.halo.app.core.reconciler;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.assertArg;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 import static run.halo.app.content.TestPost.snapshotV1;
 
 import java.net.URI;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -25,12 +21,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationContext;
 import reactor.core.publisher.Mono;
-import run.halo.app.content.ContentWrapper;
-import run.halo.app.content.ExcerptGenerator;
-import run.halo.app.content.NotificationReasonConst;
-import run.halo.app.content.SinglePageService;
-import run.halo.app.content.TestPost;
+import run.halo.app.content.*;
 import run.halo.app.core.counter.CounterService;
+import run.halo.app.core.extension.content.Constant;
 import run.halo.app.core.extension.content.Post;
 import run.halo.app.core.extension.content.SinglePage;
 import run.halo.app.core.extension.content.Snapshot;
@@ -85,28 +78,25 @@ class SinglePageReconcilerTest {
         SinglePage page = pageV1();
         page.getSpec().setHeadSnapshot("page-A-head-snapshot");
         page.getSpec().setReleaseSnapshot(page.getSpec().getHeadSnapshot());
-        when(client.fetch(eq(SinglePage.class), eq(name)))
-            .thenReturn(Optional.of(page));
-        when(singlePageService.getContent(eq(page.getSpec().getReleaseSnapshot()),
-            eq(page.getSpec().getBaseSnapshot())))
-            .thenReturn(Mono.just(ContentWrapper.builder()
-                .snapshotName(page.getSpec().getHeadSnapshot())
-                .raw("hello world")
-                .content("<p>hello world</p>")
-                .rawType("markdown")
-                .build())
-            );
+        when(client.fetch(eq(SinglePage.class), eq(name))).thenReturn(Optional.of(page));
+        when(singlePageService.getContent(
+                        eq(page.getSpec().getReleaseSnapshot()),
+                        eq(page.getSpec().getBaseSnapshot())))
+                .thenReturn(Mono.just(ContentWrapper.builder()
+                        .snapshotName(page.getSpec().getHeadSnapshot())
+                        .raw("hello world")
+                        .content("<p>hello world</p>")
+                        .rawType("markdown")
+                        .build()));
 
         Snapshot snapshotV1 = snapshotV1();
         Snapshot snapshotV2 = TestPost.snapshotV2();
         snapshotV1.getSpec().setContributors(Set.of("guqing"));
         snapshotV2.getSpec().setContributors(Set.of("guqing", "zhangsan"));
-        when(client.listAll(eq(Snapshot.class), any(), any()))
-            .thenReturn(List.of(snapshotV1, snapshotV2));
+        when(client.listAll(eq(Snapshot.class), any(), any())).thenReturn(List.of(snapshotV1, snapshotV2));
         when(externalUrlSupplier.get()).thenReturn(URI.create(""));
 
-        when(extensionGetter.getEnabledExtension(eq(ExcerptGenerator.class)))
-            .thenReturn(Mono.empty());
+        when(extensionGetter.getEnabledExtension(eq(ExcerptGenerator.class))).thenReturn(Mono.empty());
 
         ArgumentCaptor<SinglePage> captor = ArgumentCaptor.forClass(SinglePage.class);
         singlePageReconciler.reconcile(new Reconciler.Request(name));
@@ -116,6 +106,61 @@ class SinglePageReconcilerTest {
         SinglePage value = captor.getValue();
         assertThat(value.getStatus().getExcerpt()).isEqualTo("hello world");
         assertThat(value.getStatus().getContributors()).isEqualTo(List.of("guqing", "zhangsan"));
+    }
+
+    @Test
+    void shouldRegenerateExcerptWhenAutoGenerateBecomesTrue() {
+        // https://github.com/halo-dev/halo/issues/10039
+        String name = "page-A";
+        when(externalUrlSupplier.get()).thenReturn(URI.create(""));
+
+        SinglePage page = pageV1();
+        page.getSpec().setHeadSnapshot("page-A-head-snapshot");
+        page.getSpec().setReleaseSnapshot(page.getSpec().getHeadSnapshot());
+
+        // simulate a previous state where autoGenerate was false
+        var oldCacheKey = "old-checksum:false";
+        page.getMetadata().setAnnotations(new HashMap<>());
+        page.getMetadata().getAnnotations().put(Constant.CONTENT_CHECKSUM_ANNO, oldCacheKey);
+
+        // now switch to autoGenerate=true
+        var excerpt = new Post.Excerpt();
+        excerpt.setAutoGenerate(true);
+        page.getSpec().setExcerpt(excerpt);
+
+        // old excerpt that should be regenerated
+        page.getStatusOrDefault().setExcerpt("old-excerpt");
+
+        when(client.fetch(eq(SinglePage.class), eq(name))).thenReturn(Optional.of(page));
+        when(singlePageService.getContent(
+                        eq(page.getSpec().getReleaseSnapshot()),
+                        eq(page.getSpec().getBaseSnapshot())))
+                .thenReturn(Mono.just(ContentWrapper.builder()
+                        .snapshotName(page.getSpec().getHeadSnapshot())
+                        .raw("hello world")
+                        .content("<p>hello world</p>")
+                        .rawType("markdown")
+                        .build()));
+
+        Snapshot snapshotV1 = snapshotV1();
+        Snapshot snapshotV2 = TestPost.snapshotV2();
+        snapshotV1.getSpec().setContributors(Set.of("guqing"));
+        snapshotV2.getSpec().setContributors(Set.of("guqing", "zhangsan"));
+        when(client.listAll(eq(Snapshot.class), any(), any())).thenReturn(List.of(snapshotV1, snapshotV2));
+
+        when(extensionGetter.getEnabledExtension(eq(ExcerptGenerator.class))).thenReturn(Mono.empty());
+
+        ArgumentCaptor<SinglePage> captor = ArgumentCaptor.forClass(SinglePage.class);
+        singlePageReconciler.reconcile(new Reconciler.Request(name));
+
+        verify(client, times(3)).update(captor.capture());
+
+        SinglePage value = captor.getValue();
+        // should regenerate excerpt instead of returning cached old value
+        assertThat(value.getStatus().getExcerpt()).isEqualTo("hello world");
+        // annotation should be updated with new cache key ending with :true
+        assertThat(value.getMetadata().getAnnotations().get(Constant.CONTENT_CHECKSUM_ANNO))
+                .endsWith(":true");
     }
 
     @Test
@@ -148,28 +193,26 @@ class SinglePageReconcilerTest {
             page.getSpec().setPublish(true);
             page.getSpec().setHeadSnapshot("page-A-head-snapshot");
             page.getSpec().setReleaseSnapshot("page-fake-released-snapshot");
-            when(client.fetch(eq(SinglePage.class), eq(name)))
-                .thenReturn(Optional.of(page));
-            when(singlePageService.getContent(eq(page.getSpec().getReleaseSnapshot()),
-                eq(page.getSpec().getBaseSnapshot())))
-                .thenReturn(Mono.just(ContentWrapper.builder()
-                    .snapshotName(page.getSpec().getHeadSnapshot())
-                    .raw("hello world")
-                    .content("<p>hello world</p>")
-                    .rawType("markdown")
-                    .build())
-                );
+            when(client.fetch(eq(SinglePage.class), eq(name))).thenReturn(Optional.of(page));
+            when(singlePageService.getContent(
+                            eq(page.getSpec().getReleaseSnapshot()),
+                            eq(page.getSpec().getBaseSnapshot())))
+                    .thenReturn(Mono.just(ContentWrapper.builder()
+                            .snapshotName(page.getSpec().getHeadSnapshot())
+                            .raw("hello world")
+                            .content("<p>hello world</p>")
+                            .rawType("markdown")
+                            .build()));
             Instant lastModifyTime = Instant.now();
             Snapshot snapshotV2 = TestPost.snapshotV2();
             snapshotV2.getSpec().setLastModifyTime(lastModifyTime);
             when(client.fetch(eq(Snapshot.class), eq(page.getSpec().getReleaseSnapshot())))
-                .thenReturn(Optional.of(snapshotV2));
+                    .thenReturn(Optional.of(snapshotV2));
 
             when(extensionGetter.getEnabledExtension(eq(ExcerptGenerator.class)))
-                .thenReturn(Mono.empty());
+                    .thenReturn(Mono.empty());
 
-            when(client.listAll(eq(Snapshot.class), any(), any()))
-                .thenReturn(List.of());
+            when(client.listAll(eq(Snapshot.class), any(), any())).thenReturn(List.of());
 
             ArgumentCaptor<SinglePage> captor = ArgumentCaptor.forClass(SinglePage.class);
             singlePageReconciler.reconcile(new Reconciler.Request(name));
@@ -186,23 +229,21 @@ class SinglePageReconcilerTest {
 
             SinglePage page = pageV1();
             page.getSpec().setPublish(false);
-            when(client.fetch(eq(SinglePage.class), eq(name)))
-                .thenReturn(Optional.of(page));
-            when(singlePageService.getContent(eq(page.getSpec().getReleaseSnapshot()),
-                eq(page.getSpec().getBaseSnapshot())))
-                .thenReturn(Mono.just(ContentWrapper.builder()
-                    .snapshotName(page.getSpec().getHeadSnapshot())
-                    .raw("hello world")
-                    .content("<p>hello world</p>")
-                    .rawType("markdown")
-                    .build())
-                );
+            when(client.fetch(eq(SinglePage.class), eq(name))).thenReturn(Optional.of(page));
+            when(singlePageService.getContent(
+                            eq(page.getSpec().getReleaseSnapshot()),
+                            eq(page.getSpec().getBaseSnapshot())))
+                    .thenReturn(Mono.just(ContentWrapper.builder()
+                            .snapshotName(page.getSpec().getHeadSnapshot())
+                            .raw("hello world")
+                            .content("<p>hello world</p>")
+                            .rawType("markdown")
+                            .build()));
 
             when(extensionGetter.getEnabledExtension(eq(ExcerptGenerator.class)))
-                .thenReturn(Mono.empty());
+                    .thenReturn(Mono.empty());
 
-            when(client.listAll(eq(Snapshot.class), any(), any()))
-                .thenReturn(List.of());
+            when(client.listAll(eq(Snapshot.class), any(), any())).thenReturn(List.of());
 
             ArgumentCaptor<SinglePage> captor = ArgumentCaptor.forClass(SinglePage.class);
             singlePageReconciler.reconcile(new Reconciler.Request(name));
@@ -234,21 +275,21 @@ class SinglePageReconcilerTest {
         return page;
     }
 
-
     @Test
     void subscribeNewCommentNotificationTest() {
         var page = pageV1();
 
         singlePageReconciler.subscribeNewCommentNotification(page);
 
-        verify(notificationCenter).subscribe(
-            assertArg(subscriber -> assertThat(subscriber.getName())
-                .isEqualTo(page.getSpec().getOwner())),
-            assertArg(argReason -> {
-                var interestReason = new Subscription.InterestReason();
-                interestReason.setReasonType(NotificationReasonConst.NEW_COMMENT_ON_PAGE);
-                interestReason.setExpression("props.pageOwner == 'null'");
-                assertThat(argReason).isEqualTo(interestReason);
-            }));
+        verify(notificationCenter)
+                .subscribe(
+                        assertArg(subscriber -> assertThat(subscriber.getName())
+                                .isEqualTo(page.getSpec().getOwner())),
+                        assertArg(argReason -> {
+                            var interestReason = new Subscription.InterestReason();
+                            interestReason.setReasonType(NotificationReasonConst.NEW_COMMENT_ON_PAGE);
+                            interestReason.setExpression("props.pageOwner == 'null'");
+                            assertThat(argReason).isEqualTo(interestReason);
+                        }));
     }
 }

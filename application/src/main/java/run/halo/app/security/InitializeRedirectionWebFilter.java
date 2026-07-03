@@ -7,7 +7,6 @@ import java.util.Set;
 import lombok.Getter;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
-import org.springframework.lang.NonNull;
 import org.springframework.security.web.server.DefaultServerRedirectStrategy;
 import org.springframework.security.web.server.ServerRedirectStrategy;
 import org.springframework.security.web.server.util.matcher.AndServerWebExchangeMatcher;
@@ -43,20 +42,17 @@ class InitializeRedirectionWebFilter implements WebFilter {
         var html = new MediaTypeServerWebExchangeMatcher(MediaType.TEXT_HTML);
         html.setIgnoredMediaTypes(Set.of(MediaType.ALL));
         this.redirectMatcher = new AndServerWebExchangeMatcher(
-            pathMatchers(HttpMethod.GET, "/", "/console/**", "/uc/**", "/login", "/signup"),
-            html
-        );
+                pathMatchers(HttpMethod.GET, "/", "/console/**", "/uc/**", "/login", "/signup"), html);
     }
 
     @Override
-    @NonNull
-    public Mono<Void> filter(@NonNull ServerWebExchange exchange, @NonNull WebFilterChain chain) {
-        return redirectMatcher.matches(exchange)
-            .flatMap(matched -> {
-                if (!matched.isMatch()) {
-                    return chain.filter(exchange);
-                }
-                return initializationStateGetter.userInitialized()
+    public Mono<Void> filter(ServerWebExchange exchange, WebFilterChain chain) {
+        return redirectMatcher.matches(exchange).flatMap(matched -> {
+            if (!matched.isMatch()) {
+                return chain.filter(exchange);
+            }
+            return initializationStateGetter
+                    .userInitialized()
                     .defaultIfEmpty(false)
                     .flatMap(initialized -> {
                         if (initialized) {
@@ -65,7 +61,7 @@ class InitializeRedirectionWebFilter implements WebFilter {
                         // Redirect to set up page if system is not initialized.
                         return redirectStrategy.sendRedirect(exchange, location);
                     });
-            });
+        });
     }
 
     public void setRedirectStrategy(ServerRedirectStrategy redirectStrategy) {

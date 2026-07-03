@@ -24,6 +24,12 @@ import run.halo.app.extension.GroupVersion;
 import run.halo.app.extension.Ref;
 import run.halo.app.infra.exception.NotFoundException;
 
+/**
+ * User-center endpoint for reading post content snapshots owned by the current user.
+ *
+ * @author guqing
+ * @since 2.0.0
+ */
 @Component
 public class UcSnapshotEndpoint implements CustomEndpoint {
 
@@ -39,84 +45,82 @@ public class UcSnapshotEndpoint implements CustomEndpoint {
     @Override
     public RouterFunction<ServerResponse> endpoint() {
         var tag = "SnapshotV1alpha1Uc";
-        return route().nest(path("/snapshots"),
-                () -> route()
-                    .GET("/{name}",
-                        this::getSnapshot,
-                        builder -> builder.operationId("GetSnapshotForPost")
-                            .description("Get snapshot for one post.")
-                            .parameter(parameterBuilder()
-                                .name("name")
-                                .in(ParameterIn.PATH)
-                                .required(true)
-                                .description("Snapshot name.")
-                            )
-                            .parameter(parameterBuilder()
-                                .name("postName")
-                                .in(ParameterIn.QUERY)
-                                .required(true)
-                                .description("Post name.")
-                            )
-                            .parameter(parameterBuilder()
-                                .name("patched")
-                                .in(ParameterIn.QUERY)
-                                .required(false)
-                                .implementation(Boolean.class)
-                                .description("Should include patched content and raw or not.")
-                            )
-                            .response(responseBuilder().implementation(Snapshot.class))
-                            .tag(tag))
-                    .build()
-            )
-            .build();
+        return route().nest(
+                        path("/snapshots"),
+                        () -> route().GET(
+                                        "/{name}",
+                                        this::getSnapshot,
+                                        builder -> builder.operationId("GetSnapshotForPost")
+                                                .description("Get a content snapshot for a post owned by the current "
+                                                        + "user. The snapshot must belong to the post specified by "
+                                                        + "postName.")
+                                                .parameter(parameterBuilder()
+                                                        .name("name")
+                                                        .in(ParameterIn.PATH)
+                                                        .required(true)
+                                                        .implementation(String.class)
+                                                        .description("metadata.name of the snapshot to fetch."))
+                                                .parameter(
+                                                        parameterBuilder()
+                                                                .name("postName")
+                                                                .in(ParameterIn.QUERY)
+                                                                .required(true)
+                                                                .implementation(String.class)
+                                                                .description(
+                                                                        "metadata.name of the post that owns the "
+                                                                                + "snapshot. The post must belong to the current user."))
+                                                .parameter(parameterBuilder()
+                                                        .name("patched")
+                                                        .in(ParameterIn.QUERY)
+                                                        .required(false)
+                                                        .implementation(Boolean.class)
+                                                        .description("Whether to return the snapshot patched against "
+                                                                + "the post base snapshot. Defaults to false."))
+                                                .response(responseBuilder().implementation(Snapshot.class))
+                                                .tag(tag))
+                                .build())
+                .build();
     }
 
     private Mono<ServerResponse> getSnapshot(ServerRequest request) {
         var snapshotName = request.pathVariable("name");
         var postName = request.queryParam("postName")
-            .orElseThrow(() -> new ServerWebInputException("Query parameter postName is required"));
+                .orElseThrow(() -> new ServerWebInputException("Query parameter postName is required"));
         var patched = request.queryParam("patched").map(Boolean::valueOf).orElse(false);
 
-        var postNotFoundError = Mono.<Post>error(
-            () -> new NotFoundException("The post was not found or deleted.")
-        );
-        var snapshotNotFoundError = Mono.<Snapshot>error(
-            () -> new NotFoundException("The snapshot was not found or deleted.")
-        );
+        var postNotFoundError = Mono.<Post>error(() -> new NotFoundException("The post was not found or deleted."));
+        var snapshotNotFoundError =
+                Mono.<Snapshot>error(() -> new NotFoundException("The snapshot was not found or deleted."));
 
-        var postMono = getCurrentUser().flatMap(username ->
-            postService.getByUsername(postName, username).switchIfEmpty(postNotFoundError)
-        );
+        var postMono = getCurrentUser()
+                .flatMap(username ->
+                        postService.getByUsername(postName, username).switchIfEmpty(postNotFoundError));
 
         // check the post belongs to the current user.
-        var snapshotMono = postMono.flatMap(post -> Mono.defer(
-                () -> {
+        var snapshotMono = postMono.flatMap(post -> Mono.defer(() -> {
                     if (patched) {
                         var baseSnapshotName = post.getSpec().getBaseSnapshot();
                         return snapshotService.getPatchedBy(snapshotName, baseSnapshotName);
                     }
                     return snapshotService.getBy(snapshotName);
                 })
-            .filter(snapshot -> {
-                var subjectRef = snapshot.getSpec().getSubjectRef();
-                return Ref.equals(subjectRef, post);
-            })
-            .switchIfEmpty(snapshotNotFoundError)
-        );
+                .filter(snapshot -> {
+                    var subjectRef = snapshot.getSpec().getSubjectRef();
+                    return Ref.equals(subjectRef, post);
+                })
+                .switchIfEmpty(snapshotNotFoundError));
 
         return ServerResponse.ok().body(snapshotMono, Snapshot.class);
     }
 
     private Mono<String> getCurrentUser() {
-        return ReactiveSecurityContextHolder
-            .getContext()
-            .map(SecurityContext::getAuthentication)
-            .map(Authentication::getName);
+        return ReactiveSecurityContextHolder.getContext()
+                .map(SecurityContext::getAuthentication)
+                .map(Authentication::getName);
     }
 
     @Override
     public GroupVersion groupVersion() {
         return GroupVersion.parseAPIVersion("uc.api.content.halo.run/v1alpha1");
     }
-
 }

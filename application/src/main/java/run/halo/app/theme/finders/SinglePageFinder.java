@@ -1,6 +1,6 @@
 package run.halo.app.theme.finders;
 
-import org.springframework.lang.Nullable;
+import org.jspecify.annotations.Nullable;
 import reactor.core.publisher.Mono;
 import run.halo.app.core.extension.content.SinglePage;
 import run.halo.app.extension.ListResult;
@@ -21,5 +21,4 @@ public interface SinglePageFinder {
     Mono<ContentVo> content(String pageName);
 
     Mono<ListResult<ListedSinglePageVo>> list(@Nullable Integer page, @Nullable Integer size);
-
 }

@@ -2,15 +2,9 @@ package run.halo.app.theme.dialect;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.junit.jupiter.api.BeforeEach;
@@ -81,45 +75,47 @@ class ContentTemplateHeadProcessorIntegrationTest {
         templateEngine.addTemplateResolver(new TestTemplateResolver());
 
         Map<String, TemplateHeadProcessor> map = new HashMap<>();
-        map.put("postTemplateHeadProcessor",
-            new ContentTemplateHeadProcessor(postFinder, singlePageFinder));
+        map.put("postTemplateHeadProcessor", new ContentTemplateHeadProcessor(postFinder, singlePageFinder));
         map.put("templateGlobalHeadProcessor", new TemplateGlobalHeadProcessor(fetcher));
         map.put("seoProcessor", new GlobalSeoProcessor(fetcher));
         map.put("duplicateMetaTagProcessor", new DuplicateMetaTagProcessor());
-        lenient().when(applicationContext.getBeansOfType(eq(TemplateHeadProcessor.class)))
-            .thenReturn(map);
+        lenient()
+                .when(applicationContext.getBeansOfType(eq(TemplateHeadProcessor.class)))
+                .thenReturn(map);
 
         SystemSetting.Seo seo = new SystemSetting.Seo();
         seo.setKeywords("global keywords");
         seo.setDescription("global description");
-        lenient().when(fetcher.fetch(eq(SystemSetting.Seo.GROUP), eq(SystemSetting.Seo.class)))
-            .thenReturn(Mono.just(seo));
+        lenient()
+                .when(fetcher.fetch(eq(SystemSetting.Seo.GROUP), eq(SystemSetting.Seo.class)))
+                .thenReturn(Mono.just(seo));
 
         SystemSetting.CodeInjection codeInjection = new SystemSetting.CodeInjection();
-        codeInjection.setGlobalHead(
-            "<meta name=\"description\" content=\"global-head-description\"/>");
-        codeInjection.setContentHead(
-            "<meta name=\"description\" content=\"content-head-description\"/>");
-        lenient().when(fetcher.fetch(eq(SystemSetting.CodeInjection.GROUP),
-            eq(SystemSetting.CodeInjection.class))).thenReturn(Mono.just(codeInjection));
+        codeInjection.setGlobalHead("<meta name=\"description\" content=\"global-head-description\"/>");
+        codeInjection.setContentHead("<meta name=\"description\" content=\"content-head-description\"/>");
+        lenient()
+                .when(fetcher.fetch(eq(SystemSetting.CodeInjection.GROUP), eq(SystemSetting.CodeInjection.class)))
+                .thenReturn(Mono.just(codeInjection));
 
-        lenient().when(fetcher.fetch(eq(SystemSetting.Seo.GROUP), eq(SystemSetting.Seo.class)))
-            .thenReturn(Mono.empty());
+        lenient()
+                .when(fetcher.fetch(eq(SystemSetting.Seo.GROUP), eq(SystemSetting.Seo.class)))
+                .thenReturn(Mono.empty());
 
-        lenient().when(applicationContext.getBeanProvider(ExtensionGetter.class))
-            .thenAnswer(invocation -> {
-                var objectProvider = mock(ObjectProvider.class);
-                when(objectProvider.getIfUnique()).thenReturn(extensionGetter);
-                return objectProvider;
-            });
-        lenient().when(extensionGetter.getExtensions(TemplateHeadProcessor.class)).thenReturn(
-            Flux.fromIterable(map.values()).sort(AnnotationAwareOrderComparator.INSTANCE)
-        );
-        lenient().when(applicationContext.getBean(eq(SystemConfigFetcher.class)))
-            .thenReturn(fetcher);
+        lenient()
+                .when(applicationContext.getBeanProvider(ExtensionGetter.class))
+                .thenAnswer(invocation -> {
+                    var objectProvider = mock(ObjectProvider.class);
+                    when(objectProvider.getIfUnique()).thenReturn(extensionGetter);
+                    return objectProvider;
+                });
+        lenient()
+                .when(extensionGetter.getExtensions(TemplateHeadProcessor.class))
+                .thenReturn(Flux.fromIterable(map.values()).sort(AnnotationAwareOrderComparator.INSTANCE));
+        lenient()
+                .when(applicationContext.getBean(eq(SystemConfigFetcher.class)))
+                .thenReturn(fetcher);
         lenient().when(fetcher.fetchComment()).thenReturn(Mono.just(new SystemSetting.Comment()));
     }
-
 
     @Test
     void overrideGlobalMetaTest() {
@@ -141,11 +137,11 @@ class ContentTemplateHeadProcessorIntegrationTest {
 
         String result = templateEngine.process("post", context);
         /*
-          this test case shows:
-            1. global seo meta keywords and description is overridden by content head meta
-            2. global head meta is overridden by content head meta
-            3. but global head meta is not overridden by global seo meta
-         */
+         this test case shows:
+           1. global seo meta keywords and description is overridden by content head meta
+           2. global head meta is overridden by content head meta
+           3. but global head meta is not overridden by global seo meta
+        */
         var outputSettings = new Document.OutputSettings().prettyPrint(true);
         var actual = Jsoup.parse(result).outputSettings(outputSettings).html();
         var expected = Jsoup.parse("""
@@ -159,9 +155,34 @@ class ContentTemplateHeadProcessorIntegrationTest {
               <meta name="other" content="post-other-meta">
              </head>
              <body>this is body</body>
-            </html>"""
-        ).outputSettings(outputSettings).html();
+            </html>""").outputSettings(outputSettings).html();
         assertThat(actual).isEqualTo(expected);
+    }
+
+    @Test
+    void shouldKeepThemeColorMetasWithDifferentMedia() {
+        SystemSetting.CodeInjection codeInjection = new SystemSetting.CodeInjection();
+        codeInjection.setGlobalHead(null);
+        codeInjection.setContentHead(null);
+        when(fetcher.fetch(eq(SystemSetting.CodeInjection.GROUP), eq(SystemSetting.CodeInjection.class)))
+                .thenReturn(Mono.just(codeInjection));
+
+        String result = templateEngine.process("themeColor", getContext());
+
+        var actual = Jsoup.parse(result);
+        var themeColorMetas = actual.select("meta[name=theme-color]");
+        assertThat(themeColorMetas).hasSize(2);
+        assertThat(themeColorMetas.get(0).attr("content")).isEqualTo("cyan");
+        assertThat(themeColorMetas.get(0).attr("media")).isEqualTo("(prefers-color-scheme: light)");
+        assertThat(themeColorMetas.get(1).attr("content")).isEqualTo("black");
+        assertThat(themeColorMetas.get(1).attr("media")).isEqualTo("(prefers-color-scheme: dark)");
+        assertThat(actual.select("meta[name=robots]")).hasSize(2);
+        assertThat(actual.select("meta[name=custom-meta]")).singleElement().satisfies(meta -> {
+            assertThat(meta.attr("content")).isEqualTo("new custom");
+        });
+        assertThat(actual.select("meta[name=description]")).singleElement().satisfies(meta -> {
+            assertThat(meta.attr("content")).isEqualTo("new description");
+        });
     }
 
     Map<String, String> mutableMetaMap(String nameValue, String contentValue) {
@@ -174,18 +195,23 @@ class ContentTemplateHeadProcessorIntegrationTest {
     private Context getContext() {
         Context context = new Context();
         context.setVariable(
-            ThymeleafEvaluationContext.THYMELEAF_EVALUATION_CONTEXT_CONTEXT_VARIABLE_NAME,
-            new ThymeleafEvaluationContext(applicationContext, null));
+                ThymeleafEvaluationContext.THYMELEAF_EVALUATION_CONTEXT_CONTEXT_VARIABLE_NAME,
+                new ThymeleafEvaluationContext(applicationContext, null));
         return context;
     }
 
     static class TestTemplateResolver extends StringTemplateResolver {
         @Override
-        protected ITemplateResource computeTemplateResource(IEngineConfiguration configuration,
-            String ownerTemplate, String template,
-            Map<String, Object> templateResolutionAttributes) {
+        protected ITemplateResource computeTemplateResource(
+                IEngineConfiguration configuration,
+                String ownerTemplate,
+                String template,
+                Map<String, Object> templateResolutionAttributes) {
             if (template.equals("post")) {
                 return new StringTemplateResource(postTemplate());
+            }
+            if (template.equals("themeColor")) {
+                return new StringTemplateResource(themeColorTemplate());
             }
             return null;
         }
@@ -197,6 +223,30 @@ class ContentTemplateHeadProcessorIntegrationTest {
                   <head>
                     <meta charset="UTF-8" />
                     <title>Post detail</title>
+                  </head>
+                  <body>
+                    this is body
+                  </body>
+                </html>
+                """;
+        }
+
+        private String themeColorTemplate() {
+            return """
+                <!DOCTYPE html>
+                <html lang="en" xmlns:th="http://www.thymeleaf.org">
+                  <head>
+                    <meta charset="UTF-8" />
+                    <title>Theme color</title>
+                    <meta name="theme-color" th:if="true" content="cyan" media="(prefers-color-scheme: light)">
+                    <meta name="theme-color" th:if="true" content="black" media="(prefers-color-scheme: dark)">
+                    <meta name="theme-color" th:if="false" content="blue" media="(prefers-color-scheme: dark)">
+                    <meta name="robots" content="noindex">
+                    <meta name="robots" content="nofollow">
+                    <meta name="custom-meta" content="old custom">
+                    <meta name="custom-meta" content="new custom">
+                    <meta name="description" content="old description">
+                    <meta name="description" content="new description">
                   </head>
                   <body>
                     this is body

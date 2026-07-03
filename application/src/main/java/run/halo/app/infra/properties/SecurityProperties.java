@@ -30,20 +30,15 @@ public class SecurityProperties {
 
     @Data
     public static class BasicAuthOptions {
-        /**
-         * Whether basic authentication is disabled.
-         */
+        /** Whether basic authentication is disabled. */
         private boolean disabled = true;
     }
 
     @Data
     public static class TwoFactorAuthOptions {
 
-        /**
-         * Whether two-factor authentication is disabled.
-         */
+        /** Whether two-factor authentication is disabled. */
         private boolean disabled;
-
     }
 
     @Data
@@ -52,7 +47,6 @@ public class SecurityProperties {
         private boolean disabled;
 
         private final List<CorsConfig> configs = new ArrayList<>();
-
     }
 
     @Data
@@ -61,7 +55,6 @@ public class SecurityProperties {
         private String pathPattern;
 
         private CorsEndpointProperties config;
-
     }
 
     @Data
@@ -76,12 +69,18 @@ public class SecurityProperties {
     public static class ReferrerOptions {
 
         private ReferrerPolicy policy = STRICT_ORIGIN_WHEN_CROSS_ORIGIN;
-
     }
 
     @Data
     public static class RememberMeOptions {
         private Duration tokenValidity = Duration.ofDays(14);
+
+        /**
+         * Minimum interval between token rotations. Requests arriving within this duration after the last rotation will
+         * reuse the existing token instead of generating a new one, reducing unnecessary rotations and preventing
+         * false-positive cookie theft detection from stale cookies on other devices.
+         */
+        private Duration rotationCooldown = Duration.ofMinutes(5);
     }
 
     @Data
@@ -92,6 +91,5 @@ public class SecurityProperties {
         private URI href;
 
         private URI icon;
-
     }
 }

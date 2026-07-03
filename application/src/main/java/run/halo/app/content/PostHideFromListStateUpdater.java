@@ -4,7 +4,6 @@ import static run.halo.app.extension.index.query.Queries.equal;
 
 import java.time.Duration;
 import org.springframework.context.event.EventListener;
-import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import run.halo.app.core.extension.content.Post;
 import run.halo.app.event.post.CategoryHiddenStateChangeEvent;
@@ -21,14 +20,13 @@ import run.halo.app.infra.utils.ReactiveUtils;
  * @since 2.17.0
  */
 @Component
-public class PostHideFromListStateUpdater
-    extends AbstractEventReconciler<CategoryHiddenStateChangeEvent> {
+public class PostHideFromListStateUpdater extends AbstractEventReconciler<CategoryHiddenStateChangeEvent> {
     private static final Duration BLOCKING_TIMEOUT = ReactiveUtils.DEFAULT_TIMEOUT;
     private final ReactiveExtensionPaginatedOperator reactiveExtensionPaginatedOperator;
     private final ReactiveExtensionClient client;
 
-    protected PostHideFromListStateUpdater(ReactiveExtensionClient client,
-        ReactiveExtensionPaginatedOperator reactiveExtensionPaginatedOperator) {
+    protected PostHideFromListStateUpdater(
+            ReactiveExtensionClient client, ReactiveExtensionPaginatedOperator reactiveExtensionPaginatedOperator) {
         super(PostHideFromListStateUpdater.class.getName());
         this.reactiveExtensionPaginatedOperator = reactiveExtensionPaginatedOperator;
         this.client = client;
@@ -37,22 +35,21 @@ public class PostHideFromListStateUpdater
     @Override
     public Result reconcile(CategoryHiddenStateChangeEvent request) {
         var listOptions = new ListOptions();
-        listOptions.setFieldSelector(FieldSelector.of(
-            equal("spec.categories", request.getCategoryName())
-        ));
+        listOptions.setFieldSelector(FieldSelector.of(equal("spec.categories", request.getCategoryName())));
 
-        reactiveExtensionPaginatedOperator.list(Post.class, listOptions)
-            .flatMap(post -> {
-                post.getStatusOrDefault().setHideFromList(request.isHidden());
-                return client.update(post);
-            })
-            .then()
-            .block(BLOCKING_TIMEOUT);
+        reactiveExtensionPaginatedOperator
+                .list(Post.class, listOptions)
+                .flatMap(post -> {
+                    post.getStatusOrDefault().setHideFromList(request.isHidden());
+                    return client.update(post);
+                })
+                .then()
+                .block(BLOCKING_TIMEOUT);
         return Result.doNotRetry();
     }
 
     @EventListener(CategoryHiddenStateChangeEvent.class)
-    public void onApplicationEvent(@NonNull CategoryHiddenStateChangeEvent event) {
+    public void onApplicationEvent(CategoryHiddenStateChangeEvent event) {
         this.queue.addImmediately(event);
     }
 }

@@ -9,7 +9,6 @@ import org.pf4j.PluginManager;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationListener;
 import org.springframework.dao.OptimisticLockingFailureException;
-import org.springframework.lang.NonNull;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
@@ -33,15 +32,15 @@ public class PluginDevelopmentInitializer implements ApplicationListener<Applica
 
     private final ReactiveExtensionClient extensionClient;
 
-    public PluginDevelopmentInitializer(PluginManager pluginManager,
-        PluginProperties pluginProperties, ReactiveExtensionClient extensionClient) {
+    public PluginDevelopmentInitializer(
+            PluginManager pluginManager, PluginProperties pluginProperties, ReactiveExtensionClient extensionClient) {
         this.pluginManager = pluginManager;
         this.pluginProperties = pluginProperties;
         this.extensionClient = extensionClient;
     }
 
     @Override
-    public void onApplicationEvent(@NonNull ApplicationReadyEvent ignored) {
+    public void onApplicationEvent(ApplicationReadyEvent ignored) {
         if (!pluginManager.isDevelopment()) {
             return;
         }
@@ -51,19 +50,20 @@ public class PluginDevelopmentInitializer implements ApplicationListener<Applica
     private void createFixedPluginIfNecessary() {
         for (Path path : pluginProperties.getFixedPluginPath()) {
             Plugin plugin = new YamlPluginFinder().find(path);
-            extensionClient.fetch(Plugin.class, plugin.getMetadata().getName())
-                .flatMap(persistent -> {
-                    plugin.getMetadata().setVersion(persistent.getMetadata().getVersion());
-                    nullSafeAnnotations(plugin).put(PluginConst.RUNTIME_MODE_ANNO, "dev");
-                    return extensionClient.update(plugin);
-                })
-                .switchIfEmpty(Mono.defer(() -> {
-                    nullSafeAnnotations(plugin).put(PluginConst.RUNTIME_MODE_ANNO, "dev");
-                    return extensionClient.create(plugin);
-                }))
-                .retryWhen(Retry.backoff(10, Duration.ofMillis(100))
-                    .filter(t -> t instanceof OptimisticLockingFailureException))
-                .block(BLOCKING_TIMEOUT);
+            extensionClient
+                    .fetch(Plugin.class, plugin.getMetadata().getName())
+                    .flatMap(persistent -> {
+                        plugin.getMetadata().setVersion(persistent.getMetadata().getVersion());
+                        nullSafeAnnotations(plugin).put(PluginConst.RUNTIME_MODE_ANNO, "dev");
+                        return extensionClient.update(plugin);
+                    })
+                    .switchIfEmpty(Mono.defer(() -> {
+                        nullSafeAnnotations(plugin).put(PluginConst.RUNTIME_MODE_ANNO, "dev");
+                        return extensionClient.create(plugin);
+                    }))
+                    .retryWhen(Retry.backoff(10, Duration.ofMillis(100))
+                            .filter(t -> t instanceof OptimisticLockingFailureException))
+                    .block(BLOCKING_TIMEOUT);
         }
     }
 }

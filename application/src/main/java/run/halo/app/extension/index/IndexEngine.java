@@ -1,8 +1,7 @@
 package run.halo.app.extension.index;
 
+import org.jspecify.annotations.Nullable;
 import org.springframework.data.domain.Sort;
-import org.springframework.lang.NonNull;
-import org.springframework.lang.Nullable;
 import run.halo.app.extension.Extension;
 import run.halo.app.extension.ListOptions;
 import run.halo.app.extension.ListResult;
@@ -22,7 +21,7 @@ public interface IndexEngine {
      * @param extensions the extensions to insert
      * @param <E> the type of the extension
      */
-    <E extends Extension> void insert(@NonNull Iterable<E> extensions);
+    <E extends Extension> void insert(Iterable<E> extensions);
 
     /**
      * Update extension in the index.
@@ -30,7 +29,7 @@ public interface IndexEngine {
      * @param extension the extension to update
      * @param <E> the type of the extension
      */
-    <E extends Extension> void update(@NonNull Iterable<E> extension);
+    <E extends Extension> void update(Iterable<E> extension);
 
     /**
      * Delete extensions from the index.
@@ -38,7 +37,7 @@ public interface IndexEngine {
      * @param extensions the extensions to delete
      * @param <E> the type of the extension
      */
-    <E extends Extension> void delete(@NonNull Iterable<E> extensions);
+    <E extends Extension> void delete(Iterable<E> extensions);
 
     /**
      * Retrieve extension names from the index.
@@ -49,9 +48,7 @@ public interface IndexEngine {
      * @param <E> the type of the extension
      * @return the list result of extension names
      */
-    <E extends Extension> ListResult<String> retrieve(
-        Class<E> type, @Nullable ListOptions options, @NonNull PageRequest page
-    );
+    <E extends Extension> ListResult<String> retrieve(Class<E> type, @Nullable ListOptions options, PageRequest page);
 
     /**
      * Retrieve all extension names from the index.
@@ -63,8 +60,7 @@ public interface IndexEngine {
      * @return the iterable of extension names
      */
     <E extends Extension> Iterable<String> retrieveAll(
-        Class<E> type, @Nullable ListOptions options, @Nullable Sort sort
-    );
+            Class<E> type, @Nullable ListOptions options, @Nullable Sort sort);
 
     /**
      * Retrieve top N extension names from the index.
@@ -77,8 +73,7 @@ public interface IndexEngine {
      * @return the iterable of extension names
      */
     <E extends Extension> Iterable<String> retrieveTopN(
-        Class<E> type, @Nullable ListOptions options, @Nullable Sort sort, int topN
-    );
+            Class<E> type, @Nullable ListOptions options, @Nullable Sort sort, int topN);
 
     /**
      * Count the number of extensions in the index.
@@ -95,7 +90,5 @@ public interface IndexEngine {
      *
      * @return the indices manager
      */
-    @NonNull
     IndicesManager getIndicesManager();
-
 }

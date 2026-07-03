@@ -6,13 +6,7 @@ import static org.springframework.util.FileSystemUtils.deleteRecursively;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.CopyOption;
-import java.nio.file.DirectoryNotEmptyException;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
+import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -28,7 +22,6 @@ import org.jspecify.annotations.Nullable;
 import org.reactivestreams.Publisher;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.buffer.DataBuffer;
-import org.springframework.lang.NonNull;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.util.Assert;
 import reactor.core.publisher.Mono;
@@ -43,8 +36,7 @@ import run.halo.app.infra.exception.AccessDeniedException;
 @Slf4j
 public abstract class FileUtils {
 
-    private FileUtils() {
-    }
+    private FileUtils() {}
 
     /**
      * Unzip the given content to target path. Please note that no default scheduler will be used.
@@ -53,7 +45,7 @@ public abstract class FileUtils {
      * @param targetPath the target path
      * @return a Mono signaling when unzip is complete
      */
-    public static Mono<Void> unzip(Publisher<DataBuffer> content, @NonNull Path targetPath) {
+    public static Mono<Void> unzip(Publisher<DataBuffer> content, Path targetPath) {
         return unzip(content, targetPath, null);
     }
 
@@ -65,26 +57,24 @@ public abstract class FileUtils {
      * @param scheduler the scheduler
      * @return a Mono signaling when unzip is complete
      */
-    public static Mono<Void> unzip(
-        Publisher<DataBuffer> content, @NonNull Path targetPath, @Nullable Scheduler scheduler
-    ) {
+    public static Mono<Void> unzip(Publisher<DataBuffer> content, Path targetPath, @Nullable Scheduler scheduler) {
         var unzip = Mono.fromCallable(() -> {
-            try (var is = subscriberInputStream(content, 1);
-                 var zis = new ZipInputStream(is)) {
-                log.debug("Unzipping to target path: {}", targetPath);
-                unzip(zis, targetPath);
-                log.debug("Unzipped to target path: {}", targetPath);
-            }
-            return null;
-        }).then();
+                    try (var is = subscriberInputStream(content, 1);
+                            var zis = new ZipInputStream(is)) {
+                        log.debug("Unzipping to target path: {}", targetPath);
+                        unzip(zis, targetPath);
+                        log.debug("Unzipped to target path: {}", targetPath);
+                    }
+                    return null;
+                })
+                .then();
         if (scheduler != null) {
             return unzip.subscribeOn(scheduler);
         }
         return unzip;
     }
 
-    public static void unzip(@NonNull ZipInputStream zis, @NonNull Path targetPath)
-        throws IOException {
+    public static void unzip(ZipInputStream zis, Path targetPath) throws IOException {
         // 1. unzip file to folder
         // 2. return the folder path
         Assert.notNull(zis, "Zip input stream must not be null");
@@ -124,8 +114,7 @@ public abstract class FileUtils {
         try (var zos = new ZipOutputStream(Files.newOutputStream(targetPath))) {
             Files.walkFileTree(sourcePath, new SimpleFileVisitor<>() {
                 @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
-                    throws IOException {
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     checkDirectoryTraversal(sourcePath, file);
                     var relativePath = sourcePath.relativize(file);
                     var entry = new ZipEntry(relativePath.toString());
@@ -142,8 +131,7 @@ public abstract class FileUtils {
         try (var jos = new JarOutputStream(Files.newOutputStream(targetPath))) {
             Files.walkFileTree(sourcePath, new SimpleFileVisitor<>() {
                 @Override
-                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
-                    throws IOException {
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                     checkDirectoryTraversal(sourcePath, file);
                     var relativePath = sourcePath.relativize(file);
                     var entry = new JarEntry(relativePath.toString());
@@ -162,7 +150,7 @@ public abstract class FileUtils {
      * @param path path must not be null
      * @throws IOException io exception
      */
-    public static void createIfAbsent(@NonNull Path path) throws IOException {
+    public static void createIfAbsent(Path path) throws IOException {
         Assert.notNull(path, "Path must not be null");
 
         if (Files.notExists(path)) {
@@ -179,7 +167,7 @@ public abstract class FileUtils {
      * @param path path must not be null
      * @throws IOException io exception
      */
-    public static void ensureEmpty(@NonNull Path path) throws IOException {
+    public static void ensureEmpty(Path path) throws IOException {
         if (!isEmpty(path)) {
             throw new DirectoryNotEmptyException("Target directory: " + path + " was not empty");
         }
@@ -192,7 +180,7 @@ public abstract class FileUtils {
      * @return true if the given path is empty; false otherwise
      * @throws IOException io exception
      */
-    public static boolean isEmpty(@NonNull Path path) throws IOException {
+    public static boolean isEmpty(Path path) throws IOException {
         Assert.notNull(path, "Path must not be null");
 
         if (!Files.isDirectory(path) || Files.notExists(path)) {
@@ -209,14 +197,13 @@ public abstract class FileUtils {
     }
 
     /**
-     * Closes the given {@link Closeable} as a null-safe operation while consuming IOException by
-     * the given {@code consumer}.
+     * Closes the given {@link Closeable} as a null-safe operation while consuming IOException by the given
+     * {@code consumer}.
      *
      * @param closeable The resource to close, may be null.
      * @param consumer Consumes the IOException thrown by {@link Closeable#close()}.
      */
-    public static void closeQuietly(final Closeable closeable,
-        final Consumer<IOException> consumer) {
+    public static void closeQuietly(final Closeable closeable, final Consumer<IOException> consumer) {
         if (closeable != null) {
             try {
                 closeable.close();
@@ -234,8 +221,7 @@ public abstract class FileUtils {
      * @param parentPath parent path must not be null.
      * @param pathToCheck path to check must not be null
      */
-    public static void checkDirectoryTraversal(@NonNull Path parentPath,
-        @NonNull Path pathToCheck) {
+    public static void checkDirectoryTraversal(Path parentPath, Path pathToCheck) {
         Assert.notNull(parentPath, "Parent path must not be null");
         Assert.notNull(pathToCheck, "Path to check must not be null");
 
@@ -243,8 +229,10 @@ public abstract class FileUtils {
             return;
         }
 
-        throw new AccessDeniedException("Directory traversal detected: " + pathToCheck,
-            "problemDetail.directoryTraversal", new Object[] {parentPath, pathToCheck});
+        throw new AccessDeniedException(
+                "Directory traversal detected: " + pathToCheck,
+                "problemDetail.directoryTraversal",
+                new Object[] {parentPath, pathToCheck});
     }
 
     /**
@@ -253,8 +241,7 @@ public abstract class FileUtils {
      * @param parentPath parent path must not be null.
      * @param pathToCheck path to check must not be null
      */
-    public static void checkDirectoryTraversal(@NonNull String parentPath,
-        @NonNull String pathToCheck) {
+    public static void checkDirectoryTraversal(String parentPath, String pathToCheck) {
         checkDirectoryTraversal(Paths.get(parentPath), Paths.get(pathToCheck));
     }
 
@@ -264,8 +251,7 @@ public abstract class FileUtils {
      * @param parentPath parent path must not be null.
      * @param pathToCheck path to check must not be null
      */
-    public static void checkDirectoryTraversal(@NonNull Path parentPath,
-        @NonNull String pathToCheck) {
+    public static void checkDirectoryTraversal(Path parentPath, String pathToCheck) {
         checkDirectoryTraversal(parentPath, Paths.get(pathToCheck));
     }
 
@@ -285,10 +271,8 @@ public abstract class FileUtils {
         }
     }
 
-    public static Mono<Boolean> deleteRecursivelyAndSilently(
-        Path root, @Nullable Scheduler scheduler
-    ) {
-        var delete =  Mono.fromSupplier(() -> {
+    public static Mono<Boolean> deleteRecursivelyAndSilently(Path root, @Nullable Scheduler scheduler) {
+        var delete = Mono.fromSupplier(() -> {
             try {
                 return deleteRecursively(root);
             } catch (IOException ignored) {
@@ -301,14 +285,12 @@ public abstract class FileUtils {
         return delete;
     }
 
-
     public static Mono<Boolean> deleteFileSilently(Path file) {
         return deleteFileSilently(file, Schedulers.boundedElastic());
     }
 
     public static Mono<Boolean> deleteFileSilently(Path file, Scheduler scheduler) {
-        return Mono.fromSupplier(
-                () -> {
+        return Mono.fromSupplier(() -> {
                     if (file == null || !Files.isRegularFile(file)) {
                         return false;
                     }
@@ -318,7 +300,7 @@ public abstract class FileUtils {
                         return false;
                     }
                 })
-            .subscribeOn(scheduler);
+                .subscribeOn(scheduler);
     }
 
     public static void copyResource(Resource resource, Path path) {
@@ -337,15 +319,13 @@ public abstract class FileUtils {
         }
     }
 
-    public static void copyRecursively(Path src, Path target, Set<String> excludes)
-        throws IOException {
+    public static void copyRecursively(Path src, Path target, Set<String> excludes) throws IOException {
         var pathMatcher = new AntPathMatcher();
-        Predicate<Path> shouldExclude = path -> excludes.stream()
-            .anyMatch(pattern -> pathMatcher.match(pattern, path.toString()));
+        Predicate<Path> shouldExclude =
+                path -> excludes.stream().anyMatch(pattern -> pathMatcher.match(pattern, path.toString()));
         Files.walkFileTree(src, new SimpleFileVisitor<>() {
             @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
-                throws IOException {
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 if (!shouldExclude.test(src.relativize(file))) {
                     Files.copy(file, target.resolve(src.relativize(file)), REPLACE_EXISTING);
                 }
@@ -353,8 +333,7 @@ public abstract class FileUtils {
             }
 
             @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
-                throws IOException {
+            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
                 if (shouldExclude.test(src.relativize(dir))) {
                     return FileVisitResult.SKIP_SUBTREE;
                 }
