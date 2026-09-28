@@ -455,20 +455,49 @@ useSaveKeybinding(handleSave);
 // Keep session alive
 useSessionKeepAlive();
 
-// Upload image
-async function handleUploadImage(file: File, options?: AxiosRequestConfig) {
-  if (!utils.permission.has(["system:attachments:manage"])) {
+const canManageAttachments = computed(() =>
+  utils.permission.has(["system:attachments:manage"])
+);
+
+async function handleUpload(
+  fileOrUrl: File | string,
+  options?: AxiosRequestConfig
+) {
+  if (!canManageAttachments.value) {
     return;
   }
 
   const { data } =
     await consoleApiClient.storage.attachment.uploadAttachmentForConsole(
-      {
-        file,
-      },
+      typeof fileOrUrl === "string" ? { url: fileOrUrl } : { file: fileOrUrl },
       options
     );
   return data;
+}
+
+// Kept for third-party editor providers that still consume the legacy prop.
+function handleUploadImage(file: File, options?: AxiosRequestConfig) {
+  return handleUpload(file, options);
+}
+
+async function handleMatchAttachmentPermalinks(urls: string[]) {
+  if (!canManageAttachments.value) {
+    return [];
+  }
+
+  const { data } =
+    await consoleApiClient.storage.attachment.matchAttachmentPermalinksForConsole(
+      {
+        attachmentPermalinkMatchRequest: {
+          urls,
+        },
+      }
+    );
+
+  return (data.items || []).map((item) => ({
+    url: item.url || "",
+    matched: item.matched || false,
+  }));
 }
 </script>
 
@@ -560,7 +589,11 @@ async function handleUploadImage(file: File, options?: AxiosRequestConfig) {
       v-model:content="formState.content.content"
       v-model:title="formState.post.spec.title"
       v-model:cover="formState.post.spec.cover"
+      :upload="canManageAttachments ? handleUpload : undefined"
       :upload-image="handleUploadImage"
+      :match-attachment-permalinks="
+        canManageAttachments ? handleMatchAttachmentPermalinks : undefined
+      "
       class="size-full"
       @update="handleSetContentCache"
     />

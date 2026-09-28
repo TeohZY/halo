@@ -7,6 +7,7 @@ import com.google.common.hash.Hashing;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.stream.Stream;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
@@ -327,7 +328,7 @@ public class SinglePageReconciler implements Reconciler<Reconciler.Request> {
 
             // handle contributors
             String headSnapshot = singlePage.getSpec().getHeadSnapshot();
-            List<String> contributors = listSnapshots(Ref.of(singlePage)).stream()
+            Stream<String> snapshotContributors = listSnapshots(Ref.of(singlePage)).stream()
                     .peek(snapshot -> {
                         snapshot.getSpec().setContentPatch(StringUtils.EMPTY);
                         snapshot.getSpec().setRawPatch(StringUtils.EMPTY);
@@ -336,7 +337,11 @@ public class SinglePageReconciler implements Reconciler<Reconciler.Request> {
                         Set<String> usernames = snapshot.getSpec().getContributors();
                         return Objects.requireNonNullElseGet(usernames, () -> new HashSet<String>());
                     })
-                    .flatMap(Set::stream)
+                    .flatMap(Set::stream);
+            // the owner is always treated as a contributor, even if they never edited the content
+            // see https://github.com/halo-dev/halo/issues/8284
+            Stream<String> ownerContributor = Stream.ofNullable(spec.getOwner()).filter(StringUtils::isNotBlank);
+            List<String> contributors = Stream.concat(snapshotContributors, ownerContributor)
                     .distinct()
                     .sorted()
                     .toList();
@@ -376,8 +381,9 @@ public class SinglePageReconciler implements Reconciler<Reconciler.Request> {
         var cacheKey = contentChecksum + ":" + isAutoGenerate;
         var annotations = MetadataUtil.nullSafeAnnotations(singlePage);
         var oldCacheKey = annotations.get(Constant.CONTENT_CHECKSUM_ANNO);
-        if (Objects.equals(oldCacheKey, cacheKey)) {
-            return singlePage.getStatusOrDefault().getExcerpt();
+        var cachedExcerpt = singlePage.getStatusOrDefault().getExcerpt();
+        if (Objects.equals(oldCacheKey, cacheKey) && !ExcerptUtils.containsUnpairedSurrogate(cachedExcerpt)) {
+            return cachedExcerpt;
         }
         // update the checksum and generate new excerpt
         annotations.put(Constant.CONTENT_CHECKSUM_ANNO, cacheKey);
@@ -406,9 +412,9 @@ public class SinglePageReconciler implements Reconciler<Reconciler.Request> {
     static class DefaultExcerptGenerator implements ExcerptGenerator {
         @Override
         public Mono<String> generate(Context context) {
-            String shortHtmlContent = StringUtils.substring(context.getContent(), 0, 500);
+            String shortHtmlContent = ExcerptUtils.substringByCodePoints(context.getContent(), 500);
             String text = Jsoup.parse(shortHtmlContent).text();
-            return Mono.just(StringUtils.substring(text, 0, 150));
+            return Mono.just(ExcerptUtils.substringByCodePoints(text, 150));
         }
     }
 

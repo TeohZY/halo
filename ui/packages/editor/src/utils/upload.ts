@@ -1,4 +1,4 @@
-import { ucApiClient, type Attachment } from "@halo-dev/api-client";
+import type { Attachment } from "@halo-dev/api-client";
 import { utils } from "@halo-dev/ui-shared";
 import type { AxiosRequestConfig } from "axios";
 import { chunk } from "es-toolkit";
@@ -6,6 +6,25 @@ import { ExtensionAudio } from "@/extensions/audio";
 import { ExtensionImage } from "@/extensions/image";
 import { ExtensionVideo } from "@/extensions/video";
 import { Editor, PMNode } from "@/tiptap";
+
+export interface AttachmentPermalinkMatchResult {
+  url: string;
+  matched: boolean;
+}
+
+export type MatchAttachmentPermalinks = (
+  urls: string[]
+) => Promise<AttachmentPermalinkMatchResult[]>;
+
+export type Upload = (
+  fileOrUrl: File | string,
+  options?: AxiosRequestConfig
+) => Promise<Attachment | undefined>;
+
+export type UploadFile = (
+  file: File,
+  options?: AxiosRequestConfig
+) => Promise<Attachment | undefined>;
 
 export interface FileProps {
   file: File;
@@ -119,7 +138,7 @@ export interface UploadFetchResponse {
  */
 export const uploadFile = async (
   file: File,
-  upload: (file: File, options?: AxiosRequestConfig) => Promise<Attachment>,
+  upload: UploadFile,
   uploadResponse: UploadFetchResponse
 ) => {
   const { signal } = uploadResponse.controller;
@@ -167,13 +186,23 @@ export function containsFileClipboardIdentifier(types: readonly string[]) {
 
 export async function batchUploadExternalLink(
   editor: Editor,
-  nodes: { node: PMNode; pos: number; index: number; parent: PMNode | null }[]
+  nodes: {
+    node: PMNode;
+    pos: number;
+    index: number;
+    parent: PMNode | null;
+  }[],
+  upload?: Upload
 ) {
+  if (!upload) {
+    return;
+  }
+
   const chunks = chunk(nodes, 5);
 
   for (const chunkNodes of chunks) {
     await Promise.all(
-      chunkNodes.map((node) => uploadExternalLink(editor, node))
+      chunkNodes.map((node) => uploadExternalLink(editor, node, upload))
     );
   }
 }
@@ -185,7 +214,8 @@ export async function uploadExternalLink(
     pos: number;
     index: number;
     parent: PMNode | null;
-  }
+  },
+  upload: Upload
 ) {
   const { node, pos } = nodeWithPos;
   const { src } = node.attrs;
@@ -195,19 +225,22 @@ export async function uploadExternalLink(
   }
 
   try {
-    const { data } = await ucApiClient.storage.attachment.uploadAttachmentForUc(
-      {
-        url: src,
-      }
-    );
+    const uploadedAttachment = await upload(src);
 
-    const url = data.status?.permalink;
-    const name = data.spec.displayName;
+    if (!uploadedAttachment) {
+      return;
+    }
+
+    const attachment = utils.attachment.convertToSimple(uploadedAttachment);
+    if (!attachment?.url) {
+      return;
+    }
+
     const tr = editor.view.state.tr;
     tr.setNodeMarkup(pos, node.type, {
       ...node.attrs,
-      src: url,
-      name,
+      src: attachment.url,
+      name: attachment.alt,
     });
     editor.view.dispatch(tr);
   } catch (error) {
@@ -215,7 +248,10 @@ export async function uploadExternalLink(
   }
 }
 
-export function isExternalAsset(src: string) {
+export function isExternalAsset(
+  src: string,
+  localOrigin = globalThis.window?.location.origin || ""
+) {
   if (!src) {
     return false;
   }
@@ -229,8 +265,7 @@ export function isExternalAsset(src: string) {
     return false;
   }
 
-  const currentOrigin = window.location.origin;
-  if (src.startsWith(currentOrigin)) {
+  if (localOrigin && src.startsWith(localOrigin)) {
     return false;
   }
 

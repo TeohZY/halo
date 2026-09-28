@@ -15,17 +15,42 @@ import {
   VTag,
 } from "@halo-dev/components";
 import type { Ref } from "vue";
-import { inject, ref } from "vue";
+import { computed, inject, ref } from "vue";
 import { useI18n } from "vue-i18n";
 import { useThemeConfigFile, useThemeLifeCycle } from "./composables/use-theme";
+import {
+  getPageLayout,
+  getPageLayoutDescriptionKey,
+  getPageLayoutDiagnostic,
+  getPageLayoutDotState,
+  getPageLayoutLabelKey,
+} from "./utils/page-layout";
 
 const { t } = useI18n();
 
 const selectedTheme = inject<Ref<Theme | undefined>>("selectedTheme", ref());
 const themesModal = inject<Ref<boolean>>("themesModal");
 
-const { isActivated, getFailedMessage, handleResetSettingConfig } =
-  useThemeLifeCycle(selectedTheme);
+const {
+  isActivated,
+  isActivationKnown,
+  getFailedMessage,
+  handleResetSettingConfig,
+} = useThemeLifeCycle(selectedTheme);
+
+const pageLayout = computed(() => getPageLayout(selectedTheme.value));
+const pageLayoutLabelKey = computed(() =>
+  getPageLayoutLabelKey(pageLayout.value?.state)
+);
+const pageLayoutDescriptionKey = computed(() =>
+  getPageLayoutDescriptionKey(pageLayout.value?.state)
+);
+const pageLayoutDotState = computed(() =>
+  getPageLayoutDotState(pageLayout.value?.state)
+);
+const pageLayoutDiagnostic = computed(() =>
+  getPageLayoutDiagnostic(pageLayout.value)
+);
 
 async function handleClearCache() {
   Dialog.warning({
@@ -97,7 +122,7 @@ const { handleExportThemeConfiguration, openSelectImportFileDialog } =
               <span class="text-sm text-gray-500">
                 {{ selectedTheme?.spec.version }}
               </span>
-              <VTag>
+              <VTag v-if="isActivationKnown">
                 {{
                   isActivated
                     ? t("core.common.status.activated")
@@ -240,6 +265,26 @@ const { handleExportThemeConfiguration, openSelectImportFileDialog } =
           :label="$t('core.theme.detail.fields.storage_location')"
           :content="selectedTheme?.status?.location"
         />
+        <VDescriptionItem :label="$t('core.theme.detail.fields.page_layout')">
+          <div v-if="pageLayout?.state" class="space-y-1">
+            <div class="flex items-center gap-2">
+              <VStatusDot :state="pageLayoutDotState" />
+              <span>{{ $t(pageLayoutLabelKey) }}</span>
+            </div>
+            <p class="text-xs text-gray-500">
+              {{ $t(pageLayoutDescriptionKey) }}
+            </p>
+            <p
+              v-if="pageLayoutDiagnostic"
+              class="break-all text-xs text-gray-500"
+            >
+              {{ pageLayoutDiagnostic }}
+            </p>
+          </div>
+          <span v-else>
+            {{ $t("core.common.text.none") }}
+          </span>
+        </VDescriptionItem>
       </VDescription>
     </div>
   </div>

@@ -1,5 +1,4 @@
-import type { Attachment } from "@halo-dev/api-client";
-import type { AxiosRequestConfig } from "axios";
+import { Audio, type AudioOptions } from "@tiptap/extension-audio";
 import { isEmpty } from "es-toolkit/compat";
 import { markRaw } from "vue";
 import MdiMotionPlay from "~icons/mdi/motion-play";
@@ -17,8 +16,6 @@ import {
   Editor,
   findParentNode,
   isActive,
-  mergeAttributes,
-  Node,
   nodeInputRule,
   PluginKey,
   VueNodeViewRenderer,
@@ -27,77 +24,96 @@ import {
 import type { EditorState } from "@/tiptap/pm";
 import type { ExtensionOptions, NodeBubbleMenuType } from "@/types";
 import { deleteNode } from "@/utils";
+import type { UploadFile } from "@/utils/upload";
 import AudioView from "./AudioView.vue";
 import BubbleItemAudioLink from "./BubbleItemAudioLink.vue";
 import BubbleItemAudioPosition from "./BubbleItemAudioPosition.vue";
 
-declare module "@/tiptap" {
-  interface Commands<ReturnType> {
-    audio: {
-      setAudio: (options: { src: string }) => ReturnType;
-    };
-  }
-}
-
 export const AUDIO_BUBBLE_MENU_KEY = new PluginKey("audioBubbleMenu");
 
-export interface ExtensionAudioOptions extends ExtensionOptions {
-  uploadAudio?: (
-    file: File,
-    options?: AxiosRequestConfig
-  ) => Promise<Attachment>;
+export interface ExtensionAudioOptions extends AudioOptions, ExtensionOptions {
+  uploadAudio?: UploadFile;
 }
 
-export const ExtensionAudio = Node.create<ExtensionAudioOptions>({
-  name: "audio",
+export const ExtensionAudio = Audio.extend<ExtensionAudioOptions>({
   fakeSelection: true,
 
-  inline: false,
-
-  group: "block",
+  addHaloEditorMetadata() {
+    return {
+      ai: {
+        description:
+          "An audio player for a referenced audio resource, used directly as a block or as the media child of a figure.",
+        exposure: "available",
+        useWhen: ["Embedding a relevant audio recording with a known URL."],
+        avoidWhen: ["No accessible audio source is available."],
+        attributeGuidance: {
+          src: {
+            description: "URL of the audio resource.",
+            format: "absolute or site-relative URL",
+          },
+          autoplay: {
+            description: "Whether playback starts automatically.",
+            allowedValues: [true, false],
+            omitWhen: ["User-initiated playback is preferred."],
+          },
+          controls: {
+            description: "Whether native playback controls are visible.",
+            allowedValues: [true, false],
+          },
+          loop: {
+            description: "Whether playback restarts after reaching the end.",
+            allowedValues: [true, false],
+            omitWhen: ["The audio should play once."],
+          },
+          muted: {
+            description: "Whether audio output is initially muted.",
+            allowedValues: [true, false],
+            omitWhen: ["The audio should start with normal volume."],
+          },
+          preload: {
+            description: "Browser preload strategy for the audio resource.",
+            allowedValues: ["auto", "metadata", "none", null],
+          },
+          controlslist: {
+            description:
+              "Space-separated browser controls restrictions such as nodownload.",
+            examples: ["nodownload", "nodownload noplaybackrate"],
+            omitWhen: ["No native control restrictions are needed."],
+          },
+          crossorigin: {
+            description: "CORS mode used when fetching the audio resource.",
+            allowedValues: ["", "anonymous", "use-credentials"],
+            omitWhen: ["The audio does not require a CORS request."],
+          },
+          disableremoteplayback: {
+            description:
+              "Whether browsers should prevent remote playback of the audio.",
+            allowedValues: [true, false],
+            omitWhen: ["Remote playback may remain available."],
+          },
+          file: {
+            description:
+              "Editor-only upload state that is not part of persisted article HTML.",
+            omitWhen: ["Generating or editing persisted article content."],
+          },
+        },
+        generation: {
+          mode: "direct-html",
+          guidelines: [
+            "Use a stable accessible URL; uploading a local file requires a separate plugin capability.",
+          ],
+        },
+        examples: [
+          '<audio src="https://example.com/audio.mp3" controls></audio>',
+          '<audio src="https://example.com/ambient.ogg" controls loop></audio>',
+        ],
+      },
+    };
+  },
 
   addAttributes() {
     return {
       ...this.parent?.(),
-      src: {
-        default: null,
-        parseHTML: (element) => {
-          return element.getAttribute("src");
-        },
-      },
-      autoplay: {
-        default: null,
-        parseHTML: (element) => {
-          return element.getAttribute("autoplay");
-        },
-        renderHTML: (attributes) => {
-          return {
-            autoplay: attributes.autoplay,
-          };
-        },
-      },
-      controls: {
-        default: true,
-        parseHTML: (element) => {
-          return element.getAttribute("controls");
-        },
-        renderHTML: (attributes) => {
-          return {
-            controls: attributes.controls,
-          };
-        },
-      },
-      loop: {
-        default: null,
-        parseHTML: (element) => {
-          return element.getAttribute("loop");
-        },
-        renderHTML: (attributes) => {
-          return {
-            loop: attributes.loop,
-          };
-        },
-      },
       file: {
         default: null,
         renderHTML() {
@@ -107,31 +123,6 @@ export const ExtensionAudio = Node.create<ExtensionAudioOptions>({
           return null;
         },
       },
-    };
-  },
-
-  parseHTML() {
-    return [
-      {
-        tag: "audio",
-      },
-    ];
-  },
-
-  renderHTML({ HTMLAttributes }) {
-    return ["audio", mergeAttributes(HTMLAttributes)];
-  },
-
-  addCommands() {
-    return {
-      setAudio:
-        (options) =>
-        ({ commands }) => {
-          return commands.insertContent({
-            type: this.name,
-            attrs: options,
-          });
-        },
     };
   },
 
@@ -153,7 +144,7 @@ export const ExtensionAudio = Node.create<ExtensionAudioOptions>({
 
   addOptions() {
     return {
-      ...this.parent?.(),
+      ...this.parent!(),
       uploadAudio: undefined,
       getCommandMenuItems() {
         return {
@@ -231,7 +222,7 @@ export const ExtensionAudio = Node.create<ExtensionAudioOptions>({
                     .updateAttributes(ExtensionAudio.name, {
                       autoplay: editor.getAttributes(ExtensionAudio.name)
                         .autoplay
-                        ? null
+                        ? false
                         : true,
                     })
                     .setNodeSelection(editor.state.selection.from)
@@ -264,7 +255,7 @@ export const ExtensionAudio = Node.create<ExtensionAudioOptions>({
                     .chain()
                     .updateAttributes(ExtensionAudio.name, {
                       loop: editor.getAttributes(ExtensionAudio.name).loop
-                        ? null
+                        ? false
                         : true,
                     })
                     .setNodeSelection(editor.state.selection.from)

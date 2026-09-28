@@ -2,7 +2,7 @@
   "openapi": "3.0.1",
   "info": {
     "title": "Halo",
-    "version": "2.26.0-SNAPSHOT"
+    "version": "2.27.0-SNAPSHOT"
   },
   "servers": [
     {
@@ -9095,7 +9095,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -9203,7 +9203,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -9343,7 +9343,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -9511,7 +9511,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -9655,7 +9655,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -9828,7 +9828,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -9997,6 +9997,11 @@
             "description": "Metadata version observed by the last successful reconciliation.",
             "format": "int64"
           },
+          "pendingReplyCount": {
+            "type": "integer",
+            "description": "Total number of not yet approved replies under this comment.",
+            "format": "int32"
+          },
           "replyCount": {
             "type": "integer",
             "description": "Total number of replies under this comment.",
@@ -10104,7 +10109,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -10159,8 +10164,8 @@
       },
       "CopyOperation": {
         "required": [
-          "op",
           "from",
+          "op",
           "path"
         ],
         "type": "object",
@@ -10250,7 +10255,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -10364,7 +10369,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -10524,7 +10529,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -10607,7 +10612,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -10785,7 +10790,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -11010,7 +11015,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -11083,6 +11088,15 @@
             "description": "Sorting priority. Higher values sort before lower values where priority ordering is applied.",
             "format": "int32"
           },
+          "routeRef": {
+            "type": "string",
+            "description": "Built-in theme route resolved into status.href.",
+            "enum": [
+              "archives",
+              "categories",
+              "tags"
+            ]
+          },
           "target": {
             "type": "string",
             "description": "HTML anchor target used by the menu item.",
@@ -11133,7 +11147,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -11255,8 +11269,8 @@
       },
       "MoveOperation": {
         "required": [
-          "op",
           "from",
+          "op",
           "path"
         ],
         "type": "object",
@@ -11324,7 +11338,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -11451,7 +11465,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -11545,7 +11559,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -11631,6 +11645,33 @@
           }
         },
         "description": "Reference to a notifier setting form group."
+      },
+      "PageLayout": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Human-readable diagnostic message."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Stable diagnostic reason."
+          },
+          "state": {
+            "type": "string",
+            "description": "Compatibility state of the page layout contract.",
+            "enum": [
+              "SUPPORTED",
+              "MISSING",
+              "INVALID"
+            ]
+          },
+          "template": {
+            "type": "string",
+            "description": "Contract template path relative to the theme root."
+          }
+        },
+        "description": "Page layout contract compatibility details."
       },
       "PatSpec": {
         "required": [
@@ -11735,7 +11776,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -11839,7 +11880,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -12062,7 +12103,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -12207,7 +12248,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -12310,7 +12351,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -12579,7 +12620,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -12768,7 +12809,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -12905,7 +12946,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -13073,7 +13114,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -13253,7 +13294,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -13382,7 +13423,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -13441,7 +13482,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -13557,7 +13598,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -13666,7 +13707,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -13789,7 +13830,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -14086,7 +14127,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -14186,7 +14227,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -14311,7 +14352,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -14530,7 +14571,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -14660,6 +14701,9 @@
             "type": "string",
             "description": "Local filesystem location where the theme is loaded from."
           },
+          "pageLayout": {
+            "$ref": "#/components/schemas/PageLayout"
+          },
           "phase": {
             "type": "string",
             "description": "Current theme lifecycle phase.",
@@ -14751,7 +14795,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -14838,7 +14882,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -14879,8 +14923,7 @@
       },
       "UserSpec": {
         "required": [
-          "displayName",
-          "email"
+          "displayName"
         ],
         "type": "object",
         "properties": {

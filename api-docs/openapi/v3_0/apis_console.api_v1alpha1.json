@@ -2,7 +2,7 @@
   "openapi": "3.0.1",
   "info": {
     "title": "Halo",
-    "version": "2.26.0-SNAPSHOT"
+    "version": "2.27.0-SNAPSHOT"
   },
   "servers": [
     {
@@ -268,6 +268,74 @@
         ]
       }
     },
+    "/apis/api.console.halo.run/v1alpha1/categories/-/tree": {
+      "get": {
+        "description": "List Categories as a canonical tree for console category management.",
+        "operationId": "ListCategoryTree",
+        "responses": {
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryTreeNode"
+                  }
+                }
+              }
+            },
+            "description": "default response"
+          }
+        },
+        "tags": [
+          "CategoryV1alpha1Console"
+        ]
+      }
+    },
+    "/apis/api.console.halo.run/v1alpha1/categories/{name}/position": {
+      "put": {
+        "description": "Move a Category within the Console category tree.",
+        "operationId": "UpdateCategoryPosition",
+        "parameters": [
+          {
+            "description": "Category metadata.name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "*/*": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryPositionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryTreeNode"
+                  }
+                }
+              }
+            },
+            "description": "default response"
+          }
+        },
+        "tags": [
+          "CategoryV1alpha1Console"
+        ]
+      }
+    },
     "/apis/api.console.halo.run/v1alpha1/comments": {
       "get": {
         "description": "List comments with pagination, sorting, keyword, and commenter filters.",
@@ -333,6 +401,14 @@
             }
           },
           {
+            "description": "Approval state filter. When false, comments with pending replies are also included.",
+            "in": "query",
+            "name": "approved",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "description": "Kind of the commenter identity. Defaults to User when ownerName is provided.",
             "in": "query",
             "name": "ownerKind",
@@ -373,6 +449,47 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/CommentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Comment"
+                }
+              }
+            },
+            "description": "default response"
+          }
+        },
+        "tags": [
+          "CommentV1alpha1Console"
+        ]
+      }
+    },
+    "/apis/api.console.halo.run/v1alpha1/comments/{name}/content": {
+      "put": {
+        "description": "Update only the body of an existing comment. Requires its current version.",
+        "operationId": "UpdateCommentContent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "*/*": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentContentRequest"
               }
             }
           },
@@ -448,6 +565,117 @@
         },
         "tags": [
           "IndicesV1alpha1Console"
+        ]
+      }
+    },
+    "/apis/api.console.halo.run/v1alpha1/menuitems/-/tree": {
+      "get": {
+        "description": "List MenuItems as a canonical tree for console menu management.",
+        "operationId": "ListMenuItemTree",
+        "parameters": [
+          {
+            "description": "Menu metadata.name",
+            "in": "query",
+            "name": "menuName",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MenuItemTreeNode"
+                  }
+                }
+              }
+            },
+            "description": "default response"
+          }
+        },
+        "tags": [
+          "MenuItemV1alpha1Console"
+        ]
+      }
+    },
+    "/apis/api.console.halo.run/v1alpha1/menuitems/{name}/position": {
+      "put": {
+        "description": "Move a MenuItem within its owning Menu.",
+        "operationId": "UpdateMenuItemPosition",
+        "parameters": [
+          {
+            "description": "MenuItem metadata.name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "*/*": {
+              "schema": {
+                "$ref": "#/components/schemas/MenuItemPositionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MenuItemTreeNode"
+                  }
+                }
+              }
+            },
+            "description": "default response"
+          }
+        },
+        "tags": [
+          "MenuItemV1alpha1Console"
+        ]
+      }
+    },
+    "/apis/api.console.halo.run/v1alpha1/menus/{name}": {
+      "delete": {
+        "description": "Delete a Menu and MenuItems owned by the Menu.",
+        "operationId": "DeleteMenu",
+        "parameters": [
+          {
+            "description": "Menu metadata.name",
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Menu"
+                }
+              }
+            },
+            "description": "default response"
+          }
+        },
+        "tags": [
+          "MenuV1alpha1Console"
         ]
       }
     },
@@ -1630,6 +1858,47 @@
         ]
       }
     },
+    "/apis/api.console.halo.run/v1alpha1/replies/{name}/content": {
+      "put": {
+        "description": "Update only the body of an existing reply. Requires its current version.",
+        "operationId": "UpdateReplyContent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "*/*": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentContentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Reply"
+                }
+              }
+            },
+            "description": "default response"
+          }
+        },
+        "tags": [
+          "ReplyV1alpha1Console"
+        ]
+      }
+    },
     "/apis/api.console.halo.run/v1alpha1/singlepages": {
       "get": {
         "description": "List single pages with pagination, sorting, keyword, publish phase, visibility, and contributor filters.",
@@ -2724,6 +2993,27 @@
         ]
       }
     },
+    "/apis/api.console.halo.run/v1alpha1/ui-plugins/-/providers": {
+      "get": {
+        "description": "Fetch the currently enabled UI provider descriptor.",
+        "operationId": "fetchUiPluginProviders",
+        "responses": {
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UiPluginProviderDescriptor"
+                }
+              }
+            },
+            "description": "default response"
+          }
+        },
+        "tags": [
+          "UiPluginV1alpha1Console"
+        ]
+      }
+    },
     "/apis/api.console.halo.run/v1alpha1/users": {
       "get": {
         "description": "List users",
@@ -3436,6 +3726,37 @@
         ]
       }
     },
+    "/apis/console.api.storage.halo.run/v1alpha1/attachments/-/match-permalinks": {
+      "post": {
+        "description": "Match URL strings against Attachment permalinks for console.",
+        "operationId": "matchAttachmentPermalinksForConsole",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachmentPermalinkMatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentPermalinkMatchList"
+                }
+              }
+            },
+            "description": "default response"
+          }
+        },
+        "tags": [
+          "AttachmentV1alpha1Console"
+        ]
+      }
+    },
     "/apis/console.api.storage.halo.run/v1alpha1/attachments/-/upload": {
       "post": {
         "description": "Upload attachment endpoint for console.",
@@ -3624,7 +3945,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -3662,6 +3983,45 @@
             "format": "int64"
           }
         }
+      },
+      "AttachmentPermalinkMatchList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttachmentPermalinkMatchResult"
+            }
+          }
+        },
+        "description": "Ordered Attachment permalink match results."
+      },
+      "AttachmentPermalinkMatchRequest": {
+        "required": [
+          "urls"
+        ],
+        "type": "object",
+        "properties": {
+          "urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "Request payload for matching URL strings against Attachment permalinks."
+      },
+      "AttachmentPermalinkMatchResult": {
+        "type": "object",
+        "properties": {
+          "matched": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "description": "Result for one Attachment permalink match input."
       },
       "AttachmentSpec": {
         "type": "object",
@@ -3874,6 +4234,20 @@
         },
         "description": "Category extension for grouping posts and building category archives."
       },
+      "CategoryPositionRequest": {
+        "type": "object",
+        "properties": {
+          "beforeName": {
+            "type": "string",
+            "description": "target next sibling Category metadata.name, or null to append"
+          },
+          "parentName": {
+            "type": "string",
+            "description": "target parent Category metadata.name, or null for root"
+          }
+        },
+        "description": "Request to move a Category in the Console category tree."
+      },
       "CategorySpec": {
         "required": [
           "displayName",
@@ -3961,6 +4335,25 @@
         },
         "description": "Observed category state derived by content reconcilers."
       },
+      "CategoryTreeNode": {
+        "required": [
+          "category",
+          "children"
+        ],
+        "type": "object",
+        "properties": {
+          "category": {
+            "$ref": "#/components/schemas/Category"
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CategoryTreeNode"
+            }
+          }
+        },
+        "description": "Console Category tree node."
+      },
       "ChangeOwnPasswordRequest": {
         "required": [
           "oldPassword",
@@ -4020,6 +4413,30 @@
           }
         },
         "description": "Comment extension for a post, single page, or another commentable subject."
+      },
+      "CommentContentRequest": {
+        "required": [
+          "content",
+          "raw",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "content": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "raw": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "description": "Resource version when the editor was opened.",
+            "format": "int64"
+          }
+        },
+        "description": "Body-only update for an existing comment or reply."
       },
       "CommentEmailOwner": {
         "required": [
@@ -4087,8 +4504,8 @@
         "properties": {
           "allowNotification": {
             "type": "boolean",
-            "description": "Whether to subscribe the owner to notifications for future replies.",
-            "default": false
+            "description": "Whether to notify the owner of future replies. Only an explicit false disables notifications.",
+            "default": true
           },
           "content": {
             "minLength": 1,
@@ -4223,6 +4640,11 @@
             "type": "integer",
             "description": "Metadata version observed by the last successful reconciliation.",
             "format": "int64"
+          },
+          "pendingReplyCount": {
+            "type": "integer",
+            "description": "Total number of not yet approved replies under this comment.",
+            "format": "int32"
           },
           "replyCount": {
             "type": "integer",
@@ -4418,8 +4840,8 @@
       },
       "CopyOperation": {
         "required": [
-          "op",
           "from",
+          "op",
           "path"
         ],
         "type": "object",
@@ -4630,7 +5052,8 @@
           "email": {
             "type": "string",
             "format": "email",
-            "description": "email address to verify"
+            "description": "email address to verify",
+            "minLength": 1
           }
         },
         "description": "Payload for sending an email verification code."
@@ -4855,6 +5278,10 @@
           "owner": {
             "$ref": "#/components/schemas/OwnerInfo"
           },
+          "permalink": {
+            "type": "string",
+            "description": "Frontend permalink to this comment, when its subject URL is available."
+          },
           "stats": {
             "$ref": "#/components/schemas/CommentStats"
           },
@@ -4884,7 +5311,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -4987,7 +5414,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -5037,6 +5464,10 @@
           "owner": {
             "$ref": "#/components/schemas/OwnerInfo"
           },
+          "permalink": {
+            "type": "string",
+            "description": "Frontend permalink to this reply, when its subject URL is available."
+          },
           "reply": {
             "$ref": "#/components/schemas/Reply"
           },
@@ -5066,7 +5497,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -5153,7 +5584,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -5245,6 +5676,193 @@
         },
         "description": "A chunk of items."
       },
+      "Menu": {
+        "required": [
+          "apiVersion",
+          "kind",
+          "metadata",
+          "spec"
+        ],
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/Metadata"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/MenuSpec"
+          }
+        },
+        "description": "Menu extension that groups ordered menu items for theme navigation."
+      },
+      "MenuItem": {
+        "required": [
+          "apiVersion",
+          "kind",
+          "metadata",
+          "spec"
+        ],
+        "type": "object",
+        "properties": {
+          "apiVersion": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/Metadata"
+          },
+          "spec": {
+            "$ref": "#/components/schemas/MenuItemSpec"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MenuItemStatus"
+          }
+        },
+        "description": "Menu item extension that describes a navigable item and its resolved rendering state."
+      },
+      "MenuItemPositionRequest": {
+        "required": [
+          "menuName"
+        ],
+        "type": "object",
+        "properties": {
+          "beforeName": {
+            "type": "string",
+            "description": "target next sibling MenuItem metadata.name, or null to append"
+          },
+          "menuName": {
+            "type": "string",
+            "description": "selected Menu metadata.name"
+          },
+          "parentName": {
+            "type": "string",
+            "description": "target parent MenuItem metadata.name, or null for root"
+          }
+        },
+        "description": "Request to move a MenuItem within its owning Menu."
+      },
+      "MenuItemSpec": {
+        "type": "object",
+        "properties": {
+          "children": {
+            "type": "array",
+            "description": "Legacy child MenuItem names. Menu hierarchy is now sourced from MenuItem.spec.menuName and MenuItem.spec.parent.",
+            "deprecated": true,
+            "items": {
+              "type": "string",
+              "description": "Legacy child MenuItem names. Menu hierarchy is now sourced from MenuItem.spec.menuName and MenuItem.spec.parent.",
+              "deprecated": true
+            }
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Display name shown for the menu item."
+          },
+          "href": {
+            "type": "string",
+            "description": "Direct URL used by the menu item."
+          },
+          "menuName": {
+            "type": "string",
+            "description": "Owning Menu metadata.name. Optional for compatibility with legacy raw payloads."
+          },
+          "parent": {
+            "type": "string",
+            "description": "Parent MenuItem metadata.name in the same menu. Root items leave this unset."
+          },
+          "priority": {
+            "type": "integer",
+            "description": "Sorting priority. Higher values sort before lower values where priority ordering is applied.",
+            "format": "int32"
+          },
+          "routeRef": {
+            "type": "string",
+            "description": "Built-in theme route resolved into status.href.",
+            "enum": [
+              "archives",
+              "categories",
+              "tags"
+            ]
+          },
+          "target": {
+            "type": "string",
+            "description": "HTML anchor target used by the menu item.",
+            "enum": [
+              "_blank",
+              "_self",
+              "_parent",
+              "_top"
+            ]
+          },
+          "targetRef": {
+            "$ref": "#/components/schemas/Ref"
+          }
+        },
+        "description": "Desired menu item configuration."
+      },
+      "MenuItemStatus": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "description": "Calculated display name after resolving targetRef, falling back to spec.displayName."
+          },
+          "href": {
+            "type": "string",
+            "description": "Calculated href after resolving targetRef, falling back to spec.href."
+          }
+        },
+        "description": "Resolved menu item values used for rendering."
+      },
+      "MenuItemTreeNode": {
+        "required": [
+          "children",
+          "menuItem"
+        ],
+        "type": "object",
+        "properties": {
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/MenuItemTreeNode"
+            }
+          },
+          "menuItem": {
+            "$ref": "#/components/schemas/MenuItem"
+          }
+        },
+        "description": "Console MenuItem tree node."
+      },
+      "MenuSpec": {
+        "required": [
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "description": "Display name shown for the menu."
+          },
+          "menuItems": {
+            "type": "array",
+            "description": "Legacy ordered root MenuItem names. Menu hierarchy is now sourced from MenuItem.spec.menuName and MenuItem.spec.parent.",
+            "deprecated": true,
+            "items": {
+              "type": "string",
+              "description": "Legacy ordered root MenuItem names. Menu hierarchy is now sourced from MenuItem.spec.menuName and MenuItem.spec.parent.",
+              "deprecated": true
+            }
+          }
+        },
+        "description": "Desired menu configuration."
+      },
       "Metadata": {
         "required": [
           "name"
@@ -5305,8 +5923,8 @@
       },
       "MoveOperation": {
         "required": [
-          "op",
           "from",
+          "op",
           "path"
         ],
         "type": "object",
@@ -5356,6 +5974,33 @@
           }
         },
         "description": "Resolved owner summary for a comment or reply."
+      },
+      "PageLayout": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Human-readable diagnostic message."
+          },
+          "reason": {
+            "type": "string",
+            "description": "Stable diagnostic reason."
+          },
+          "state": {
+            "type": "string",
+            "description": "Compatibility state of the page layout contract.",
+            "enum": [
+              "SUPPORTED",
+              "MISSING",
+              "INVALID"
+            ]
+          },
+          "template": {
+            "type": "string",
+            "description": "Contract template path relative to the theme root."
+          }
+        },
+        "description": "Page layout contract compatibility details."
       },
       "Plugin": {
         "required": [
@@ -5446,7 +6091,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -6004,7 +6649,7 @@
             "$ref": "#/components/schemas/ReplyStatus"
           }
         },
-        "description": "Reply extension data."
+        "description": "Reply extension that belongs to a top-level {@link Comment Comment}."
       },
       "ReplyRequest": {
         "required": [
@@ -6015,8 +6660,8 @@
         "properties": {
           "allowNotification": {
             "type": "boolean",
-            "description": "Whether to subscribe the owner to notifications for future replies.",
-            "default": false
+            "description": "Whether to notify the owner of future replies. Only an explicit false disables notifications.",
+            "default": true
           },
           "content": {
             "minLength": 1,
@@ -6583,7 +7228,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -6784,7 +7429,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -6914,6 +7559,9 @@
             "type": "string",
             "description": "Local filesystem location where the theme is loaded from."
           },
+          "pageLayout": {
+            "$ref": "#/components/schemas/PageLayout"
+          },
           "phase": {
             "type": "string",
             "description": "Current theme lifecycle phase.",
@@ -6933,6 +7581,71 @@
           }
         },
         "description": "Observed theme lifecycle and installation state."
+      },
+      "UiPluginProvider": {
+        "required": [
+          "kind",
+          "name",
+          "type",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "entry": {
+            "type": "string",
+            "description": "ESM entry URL, required for ESM providers."
+          },
+          "kind": {
+            "type": "string",
+            "description": "Provider classification and loading mode.",
+            "enum": [
+              "legacy",
+              "esm",
+              "invalid"
+            ]
+          },
+          "name": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "description": "Discovery failure reason, required for invalid providers."
+          },
+          "style": {
+            "type": "string",
+            "description": "Optional startup stylesheet URL."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "plugin",
+              "theme"
+            ]
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "description": "One ordered UI provider classification."
+      },
+      "UiPluginProviderDescriptor": {
+        "required": [
+          "providers"
+        ],
+        "type": "object",
+        "properties": {
+          "legacyScript": {
+            "type": "string",
+            "description": "Legacy aggregate script URL, present when a legacy provider exists."
+          },
+          "providers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UiPluginProvider"
+            }
+          }
+        },
+        "description": "Browser descriptor for the currently enabled plugin and theme UI providers."
       },
       "UpgradeFromUriRequest": {
         "required": [
@@ -7054,7 +7767,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -7127,8 +7840,7 @@
       },
       "UserSpec": {
         "required": [
-          "displayName",
-          "email"
+          "displayName"
         ],
         "type": "object",
         "properties": {

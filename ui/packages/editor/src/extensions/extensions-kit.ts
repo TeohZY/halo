@@ -55,6 +55,7 @@ import { ExtensionIframe } from "./iframe";
 import { ExtensionImage, type ExtensionImageOptions } from "./image";
 import { ExtensionIndent, type ExtensionIndentOptions } from "./indent";
 import { ExtensionItalic, type ExtensionItalicOptions } from "./italic";
+import { ExtensionKeyboardShortcuts } from "./keyboard-shortcuts";
 import { ExtensionLink, type ExtensionLinkOptions } from "./link";
 import { ExtensionListExtra } from "./list-extra";
 import {
@@ -74,8 +75,14 @@ import {
   type ExtensionParagraphOptions,
 } from "./paragraph";
 import { ExtensionPlaceholder } from "./placeholder";
-import { ExtensionRangeSelection } from "./range-selection";
-import { ExtensionSearchAndReplace } from "./search-and-replace";
+import {
+  ExtensionRangeSelection,
+  type ExtensionRangeSelectionOptions,
+} from "./range-selection";
+import {
+  ExtensionSearchAndReplace,
+  type ExtensionSearchAndReplaceOptions,
+} from "./search-and-replace";
 import { ExtensionSmartScroll, type SmartScrollOptions } from "./smart-scroll";
 import { ExtensionStrike, type ExtensionStrikeOptions } from "./strike";
 import {
@@ -97,12 +104,15 @@ import {
   ExtensionTextStyle,
   type ExtensionTextStyleOptions,
 } from "./text-style";
-import { ExtensionTrailingNode } from "./trailing-node";
+import {
+  ExtensionTrailingNode,
+  type TrailingNodeOptions,
+} from "./trailing-node";
 import {
   ExtensionUnderline,
   type ExtensionUnderlineOptions,
 } from "./underline";
-import { ExtensionUpload } from "./upload";
+import { ExtensionUpload, type ExtensionUploadOptions } from "./upload";
 import { ExtensionVideo, type ExtensionVideoOptions } from "./video";
 
 export interface ExtensionsKitOptions {
@@ -134,14 +144,15 @@ export interface ExtensionsKitOptions {
   image: Partial<ExtensionImageOptions> | false;
   indent: Partial<ExtensionIndentOptions> | false;
   italic: Partial<ExtensionItalicOptions> | false;
+  keyboardShortcuts?: boolean;
   link: Partial<ExtensionLinkOptions> | false;
   listKeymap: Partial<ExtensionListKeymapOptions> | false;
   nodeSelected: Partial<ExtensionNodeSelectedOptions> | false;
   orderedList: Partial<ExtensionOrderedListOptions> | false;
   paragraph: Partial<ExtensionParagraphOptions> | false;
   placeholder: Partial<PlaceholderOptions> | false;
-  rangeSelection?: boolean;
-  searchAndReplace?: boolean;
+  rangeSelection: Partial<ExtensionRangeSelectionOptions> | false;
+  searchAndReplace?: boolean | Partial<ExtensionSearchAndReplaceOptions>;
   smartScroll: Partial<SmartScrollOptions> | false;
   strike: Partial<ExtensionStrikeOptions> | false;
   subscript: Partial<ExtensionSubscriptOptions> | false;
@@ -151,9 +162,9 @@ export interface ExtensionsKitOptions {
   text: Partial<ExtensionTextOptions> | false;
   textAlign: Partial<ExtensionTextAlignOptions> | false;
   textStyle: Partial<ExtensionTextStyleOptions> | false;
-  trailingNode?: boolean;
+  trailingNode: Partial<TrailingNodeOptions> | false;
   underline: Partial<ExtensionUnderlineOptions> | false;
-  upload?: boolean;
+  upload: Partial<ExtensionUploadOptions> | false;
   video: Partial<ExtensionVideoOptions> | false;
   listExtra: Partial<ExtensionOptions> | false;
   blockPosition: Partial<ExtensionBlockPositionOptions> | false;
@@ -300,6 +311,10 @@ export const ExtensionsKit = Extension.create<ExtensionsKitOptions>({
       internalExtensions.push(ExtensionItalic.configure(this.options.italic));
     }
 
+    if (this.options.keyboardShortcuts !== false) {
+      internalExtensions.push(ExtensionKeyboardShortcuts);
+    }
+
     if (this.options.link !== false) {
       internalExtensions.push(ExtensionLink.configure(this.options.link));
     }
@@ -335,11 +350,17 @@ export const ExtensionsKit = Extension.create<ExtensionsKitOptions>({
     }
 
     if (this.options.rangeSelection !== false) {
-      internalExtensions.push(ExtensionRangeSelection);
+      internalExtensions.push(
+        ExtensionRangeSelection.configure(this.options.rangeSelection)
+      );
     }
 
     if (this.options.searchAndReplace !== false) {
-      internalExtensions.push(ExtensionSearchAndReplace);
+      internalExtensions.push(
+        typeof this.options.searchAndReplace === "object"
+          ? ExtensionSearchAndReplace.configure(this.options.searchAndReplace)
+          : ExtensionSearchAndReplace
+      );
     }
 
     if (this.options.smartScroll !== false) {
@@ -391,7 +412,9 @@ export const ExtensionsKit = Extension.create<ExtensionsKitOptions>({
     }
 
     if (this.options.trailingNode !== false) {
-      internalExtensions.push(ExtensionTrailingNode);
+      internalExtensions.push(
+        ExtensionTrailingNode.configure(this.options.trailingNode)
+      );
     }
 
     if (this.options.underline !== false) {
@@ -401,7 +424,7 @@ export const ExtensionsKit = Extension.create<ExtensionsKitOptions>({
     }
 
     if (this.options.upload !== false) {
-      internalExtensions.push(ExtensionUpload);
+      internalExtensions.push(ExtensionUpload.configure(this.options.upload));
     }
 
     if (this.options.video !== false) {

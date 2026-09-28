@@ -10,6 +10,7 @@ import {
   AuthProviderV1alpha1ConsoleApi,
   BackupV1alpha1Api,
   CategoryV1alpha1Api,
+  CategoryV1alpha1ConsoleApi,
   CategoryV1alpha1PublicApi,
   CommentV1alpha1Api,
   CommentV1alpha1ConsoleApi,
@@ -23,7 +24,9 @@ import {
   IndexV1alpha1PublicApi,
   IndicesV1alpha1ConsoleApi,
   MenuItemV1alpha1Api,
+  MenuItemV1alpha1ConsoleApi,
   MenuV1alpha1Api,
+  MenuV1alpha1ConsoleApi,
   MenuV1alpha1PublicApi,
   MetricsV1alpha1PublicApi,
   MigrationV1alpha1ConsoleApi,
@@ -68,10 +71,12 @@ import {
   ThemeV1alpha1Api,
   ThemeV1alpha1ConsoleApi,
   TwoFactorAuthV1alpha1UcApi,
+  UiPluginV1alpha1ConsoleApi,
   UserConnectionV1alpha1Api,
   UserPreferenceV1alpha1UcApi,
   UserV1alpha1Api,
   UserV1alpha1ConsoleApi,
+  UserV1alpha1UcApi,
 } from "../src";
 
 const defaultAxiosInstance = axios.create({
@@ -274,6 +279,8 @@ function createConsoleApiClient(axiosInstance: AxiosInstance) {
   const baseURL = axiosInstance.defaults.baseURL;
 
   return {
+    menu: new MenuV1alpha1ConsoleApi(undefined, baseURL, axiosInstance),
+    menuItem: new MenuItemV1alpha1ConsoleApi(undefined, baseURL, axiosInstance),
     user: new UserV1alpha1ConsoleApi(undefined, baseURL, axiosInstance),
     system: new SystemV1alpha1ConsoleApi(undefined, baseURL, axiosInstance),
     migration: new MigrationV1alpha1ConsoleApi(
@@ -281,6 +288,7 @@ function createConsoleApiClient(axiosInstance: AxiosInstance) {
       baseURL,
       axiosInstance
     ),
+    uiPlugin: new UiPluginV1alpha1ConsoleApi(undefined, baseURL, axiosInstance),
     storage: {
       attachment: new AttachmentV1alpha1ConsoleApi(
         undefined,
@@ -297,6 +305,11 @@ function createConsoleApiClient(axiosInstance: AxiosInstance) {
       ),
     },
     content: {
+      category: new CategoryV1alpha1ConsoleApi(
+        undefined,
+        baseURL,
+        axiosInstance
+      ),
       comment: new CommentV1alpha1ConsoleApi(undefined, baseURL, axiosInstance),
       reply: new ReplyV1alpha1ConsoleApi(undefined, baseURL, axiosInstance),
       indices: new IndicesV1alpha1ConsoleApi(undefined, baseURL, axiosInstance),
@@ -400,6 +413,7 @@ function createUcApiClient(axiosInstance: AxiosInstance) {
         baseURL,
         axiosInstance
       ),
+      currentUser: new UserV1alpha1UcApi(undefined, baseURL, axiosInstance),
     },
     core: {
       annotationSetting: new AnnotationSettingV1AlphaUcApi(

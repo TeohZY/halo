@@ -36,6 +36,7 @@ import { useCommentLastReadTimeMutate } from "../composables/use-comment-last-re
 import { useContentProviderExtensionPoint } from "../composables/use-content-provider-extension-point";
 import { useSubjectRef } from "../composables/use-subject-ref";
 import CommentDetailModal from "./CommentDetailModal.vue";
+import CommentEditingModal from "./CommentEditingModal.vue";
 import OwnerButton from "./OwnerButton.vue";
 import ReplyCreationModal from "./ReplyCreationModal.vue";
 import ReplyListItem from "./ReplyListItem.vue";
@@ -47,18 +48,26 @@ const props = withDefaults(
   defineProps<{
     comment: ListedComment;
     isSelected?: boolean;
+    defaultExpandReplies?: boolean;
   }>(),
   {
     isSelected: false,
+    defaultExpandReplies: false,
   }
 );
 
 const { comment } = toRefs(props);
 
 const hoveredReply = ref<ListedReply>();
-const showReplies = ref(false);
+const pendingReplyCount = computed(
+  () => props.comment.comment.status?.pendingReplyCount || 0
+);
+const showReplies = ref(
+  props.defaultExpandReplies && pendingReplyCount.value > 0
+);
 const replyModal = ref(false);
 const detailModalVisible = ref(false);
+const editingModalVisible = ref(false);
 
 provide<Ref<ListedReply | undefined>>("hoveredReply", hoveredReply);
 
@@ -234,6 +243,16 @@ const { data: operationItems } = useOperationItemExtensionPoint<ListedComment>(
       },
     },
     {
+      priority: 15,
+      component: markRaw(VDropdownItem),
+      label: t("core.common.buttons.edit"),
+      permissions: ["system:comments:manage"],
+      hidden: !!props.comment.comment.metadata.deletionTimestamp,
+      action: () => {
+        editingModalVisible.value = true;
+      },
+    },
+    {
       priority: 20,
       component: markRaw(VDropdownItem),
       label: t("core.comment.operations.approve_applies_in_batch.button"),
@@ -269,6 +288,11 @@ const { data: contentProvider } = useContentProviderExtensionPoint();
 </script>
 
 <template>
+  <CommentEditingModal
+    v-if="editingModalVisible"
+    :target="comment.comment"
+    @close="editingModalVisible = false"
+  />
   <ReplyCreationModal
     v-if="replyModal"
     :comment="comment"
@@ -309,8 +333,8 @@ const { data: contentProvider } = useContentProviderExtensionPoint();
                 {{ subjectRefResult.title }}
               </RouterLink>
               <a
-                v-if="subjectRefResult.externalUrl"
-                :href="subjectRefResult.externalUrl"
+                v-if="comment.permalink || subjectRefResult.externalUrl"
+                :href="comment.permalink || subjectRefResult.externalUrl"
                 target="_blank"
                 class="invisible text-gray-600 hover:text-gray-900 group-hover:visible"
               >
@@ -329,6 +353,17 @@ const { data: contentProvider } = useContentProviderExtensionPoint();
                 {{
                   $t("core.comment.list.fields.reply_count", {
                     count: comment?.comment?.status?.replyCount || 0,
+                  })
+                }}
+              </span>
+              <span
+                v-if="pendingReplyCount > 0"
+                class="cursor-pointer select-none text-gray-700 hover:text-gray-900"
+                @click="handleToggleShowReplies"
+              >
+                {{
+                  $t("core.comment.list.fields.pending_reply_count", {
+                    count: pendingReplyCount,
                   })
                 }}
               </span>

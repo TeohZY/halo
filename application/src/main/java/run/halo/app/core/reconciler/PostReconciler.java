@@ -14,6 +14,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.BooleanUtils;
@@ -156,12 +157,16 @@ public class PostReconciler implements Reconciler<Reconciler.Request> {
             var ref = Ref.of(post);
             // handle contributors
             var headSnapshot = post.getSpec().getHeadSnapshot();
-            var contributors = listSnapshots(ref).stream()
+            var snapshotContributors = listSnapshots(ref).stream()
                     .map(snapshot -> {
                         Set<String> usernames = snapshot.getSpec().getContributors();
                         return Objects.requireNonNullElseGet(usernames, () -> new HashSet<String>());
                     })
-                    .flatMap(Set::stream)
+                    .flatMap(Set::stream);
+            // the owner is always treated as a contributor, even if they never edited the content
+            // see https://github.com/halo-dev/halo/issues/8284
+            var ownerContributor = Stream.ofNullable(post.getSpec().getOwner()).filter(StringUtils::isNotBlank);
+            var contributors = Stream.concat(snapshotContributors, ownerContributor)
                     .distinct()
                     .sorted()
                     .toList();
@@ -375,8 +380,9 @@ public class PostReconciler implements Reconciler<Reconciler.Request> {
         var cacheKey = contentChecksum + ":" + isAutoGenerate;
         var annotations = MetadataUtil.nullSafeAnnotations(post);
         var oldCacheKey = annotations.get(Constant.CONTENT_CHECKSUM_ANNO);
-        if (Objects.equals(oldCacheKey, cacheKey)) {
-            return post.getStatusOrDefault().getExcerpt();
+        var cachedExcerpt = post.getStatusOrDefault().getExcerpt();
+        if (Objects.equals(oldCacheKey, cacheKey) && !ExcerptUtils.containsUnpairedSurrogate(cachedExcerpt)) {
+            return cachedExcerpt;
         }
         // update the checksum and generate new excerpt
         annotations.put(Constant.CONTENT_CHECKSUM_ANNO, cacheKey);
@@ -424,9 +430,9 @@ public class PostReconciler implements Reconciler<Reconciler.Request> {
     static class DefaultExcerptGenerator implements ExcerptGenerator {
         @Override
         public Mono<String> generate(Context context) {
-            String shortHtmlContent = StringUtils.substring(context.getContent(), 0, 500);
+            String shortHtmlContent = ExcerptUtils.substringByCodePoints(context.getContent(), 500);
             String text = Jsoup.parse(shortHtmlContent).text();
-            return Mono.just(StringUtils.substring(text, 0, 150));
+            return Mono.just(ExcerptUtils.substringByCodePoints(text, 150));
         }
     }
 

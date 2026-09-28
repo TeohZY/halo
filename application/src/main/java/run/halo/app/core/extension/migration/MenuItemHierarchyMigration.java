@@ -8,9 +8,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import lombok.RequiredArgsConstructor;
 import lombok.Value;
 import lombok.extern.slf4j.Slf4j;
@@ -76,7 +78,7 @@ class MenuItemHierarchyMigration {
         var context = new MigrationContext(menus, menuItems);
         return Flux.fromIterable(context.rootPaths())
                 .concatMap(path -> migratePath(context, path, false))
-                .then(labelAssignedMenuItems(context))
+                .then(Mono.defer(() -> labelAssignedMenuItems(context)))
                 .then(Mono.fromSupplier(context::getSummary));
     }
 
@@ -119,9 +121,12 @@ class MenuItemHierarchyMigration {
 
     private Mono<MenuItem> migrateOriginal(MigrationContext context, MenuItem item, LegacyPath path) {
         context.recordOriginalUse(item, path);
-        return updateIfChanged(context, item, () -> {
+        return updateIfChanged(context, item, latest -> {
+            var spec = ensureSpec(latest);
+            if (TRUE.equals(labelsOf(latest).get(MenuItem.HIERARCHY_MIGRATED_LABEL)) && hasText(spec.getMenuName())) {
+                return false;
+            }
             var changed = false;
-            var spec = ensureSpec(item);
             if (!hasText(spec.getMenuName())) {
                 spec.setMenuName(path.getMenuName());
                 changed = true;
@@ -130,7 +135,7 @@ class MenuItemHierarchyMigration {
                 spec.setParent(path.getParentName());
                 changed = true;
             }
-            return markMigrated(item) || changed;
+            return markMigrated(latest) || changed;
         });
     }
 
@@ -138,9 +143,13 @@ class MenuItemHierarchyMigration {
         var existingClone = context.findClone(path);
         if (existingClone != null) {
             context.recordCloneReused();
-            return updateIfChanged(context, existingClone, () -> {
+            return updateIfChanged(context, existingClone, latest -> {
+                var spec = ensureSpec(latest);
+                if (TRUE.equals(labelsOf(latest).get(MenuItem.HIERARCHY_MIGRATED_LABEL))
+                        && hasText(spec.getMenuName())) {
+                    return false;
+                }
                 var changed = false;
-                var spec = ensureSpec(existingClone);
                 if (!hasText(spec.getMenuName())) {
                     spec.setMenuName(path.getMenuName());
                     changed = true;
@@ -149,7 +158,7 @@ class MenuItemHierarchyMigration {
                     spec.setParent(path.getParentName());
                     changed = true;
                 }
-                return markMigrated(existingClone) || changed;
+                return markMigrated(latest) || changed;
             });
         }
 
@@ -195,34 +204,39 @@ class MenuItemHierarchyMigration {
     }
 
     private Mono<MenuItem> updateIfChanged(MigrationContext context, MenuItem item, ChangeDetector detector) {
-        if (!detector.changed()) {
-            return Mono.just(item);
-        }
-        return client.update(item)
+        return Mono.defer(() -> client.fetch(MenuItem.class, item.getMetadata().getName())
+                        .flatMap(latest -> {
+                            if (!detector.changed(latest)) {
+                                return Mono.just(latest);
+                            }
+                            return client.update(latest).doOnNext(updated -> context.recordUpdated());
+                        }))
                 .retryWhen(Retry.backoff(3, Duration.ofMillis(100))
                         .filter(OptimisticLockingFailureException.class::isInstance))
-                .doOnNext(updated -> {
-                    context.addItem(updated);
-                    context.recordUpdated();
-                })
+                .doOnNext(context::addItem)
                 .onErrorResume(t -> {
+                    var name = item.getMetadata().getName();
+                    context.failedSubtreeNames.add(name);
+                    context.collectLegacyDescendants(name, context.failedSubtreeNames);
                     context.failure(
                             "Failed to update MenuItem '{}'.",
                             t,
                             item.getMetadata().getName());
-                    return Mono.just(item);
+                    return Mono.empty();
                 });
     }
 
     private Mono<Void> labelAssignedMenuItems(MigrationContext context) {
         return Flux.fromIterable(context.items())
+                .filter(item ->
+                        !context.failedSubtreeNames.contains(item.getMetadata().getName()))
                 .filter(item -> {
                     var spec = item.getSpec();
                     return spec != null
                             && hasText(spec.getMenuName())
                             && !TRUE.equals(labelsOf(item).get(MenuItem.HIERARCHY_MIGRATED_LABEL));
                 })
-                .concatMap(item -> updateIfChanged(context, item, () -> markMigrated(item)))
+                .concatMap(item -> updateIfChanged(context, item, MenuItemHierarchyMigration::markMigrated))
                 .then();
     }
 
@@ -279,7 +293,7 @@ class MenuItemHierarchyMigration {
 
     @FunctionalInterface
     private interface ChangeDetector {
-        boolean changed();
+        boolean changed(MenuItem item);
     }
 
     @Value
@@ -321,6 +335,7 @@ class MenuItemHierarchyMigration {
         private final List<Menu> menus;
         private final Map<String, MenuItem> itemsByName;
         private final Map<String, LegacyPath> originalUses = new HashMap<>();
+        private final Set<String> failedSubtreeNames = new HashSet<>();
         private final MutableMigrationSummary summary;
 
         MigrationContext(List<Menu> menus, List<MenuItem> items) {
@@ -338,11 +353,58 @@ class MenuItemHierarchyMigration {
                 if (spec == null || spec.getMenuItems() == null) {
                     continue;
                 }
-                spec.getMenuItems().stream()
-                        .filter(Objects::nonNull)
+                legacyRootNames(spec.getMenuItems()).stream()
                         .forEach(itemName -> paths.add(new LegacyPath(menuName, null, itemName, List.of(itemName))));
             }
             return paths;
+        }
+
+        private List<String> legacyRootNames(Iterable<String> menuItemNames) {
+            var members = new ArrayList<String>();
+            menuItemNames.forEach(itemName -> {
+                if (itemName != null) {
+                    members.add(itemName);
+                }
+            });
+            var memberSet = new HashSet<>(members);
+            var descendants = new HashSet<String>();
+            // Legacy Console stored every menu member, not only roots, in Menu.spec.menuItems.
+            for (var member : members) {
+                var memberDescendants = new HashSet<String>();
+                collectLegacyDescendants(member, memberDescendants);
+                memberDescendants.remove(member);
+                memberDescendants.retainAll(memberSet);
+                descendants.addAll(memberDescendants);
+            }
+
+            var roots = new ArrayList<String>();
+            members.stream().filter(itemName -> !descendants.contains(itemName)).forEach(roots::add);
+            var covered = new HashSet<String>();
+            roots.forEach(root -> {
+                covered.add(root);
+                collectLegacyDescendants(root, covered);
+            });
+            // A cyclic or otherwise disconnected component has no natural root. Pick one entry so
+            // migration can still visit it, without treating every member in the component as a root.
+            for (var member : members) {
+                if (covered.add(member)) {
+                    roots.add(member);
+                    collectLegacyDescendants(member, covered);
+                }
+            }
+            return roots;
+        }
+
+        private void collectLegacyDescendants(String itemName, Set<String> descendants) {
+            var item = getItem(itemName);
+            if (item == null) {
+                return;
+            }
+            for (var childName : legacyChildren(item)) {
+                if (descendants.add(childName)) {
+                    collectLegacyDescendants(childName, descendants);
+                }
+            }
         }
 
         @Nullable

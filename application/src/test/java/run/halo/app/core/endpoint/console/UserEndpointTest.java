@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -13,9 +14,11 @@ import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.mockUser;
 import static org.springframework.security.test.web.reactive.server.SecurityMockServerConfigurers.springSecurity;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,10 +31,14 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.test.web.reactive.server.WebTestClient;
+import org.springframework.validation.Errors;
+import org.springframework.validation.Validator;
 import org.springframework.web.reactive.function.BodyInserters;
+import org.springframework.web.server.ServerWebInputException;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import run.halo.app.core.extension.Role;
@@ -69,15 +76,53 @@ class UserEndpointTest {
     @Mock
     UserService userService;
 
+    @Mock
+    Validator validator;
+
     @InjectMocks
     UserEndpoint endpoint;
 
     @BeforeEach
     void setUp() {
         webClient = WebTestClient.bindToRouterFunction(endpoint.endpoint())
+                .webFilter((exchange, chain) -> chain.filter(exchange)
+                        .onErrorResume(ServerWebInputException.class, error -> {
+                            var response = exchange.getResponse();
+                            response.setStatusCode(error.getStatusCode());
+                            response.getHeaders().setContentType(MediaType.APPLICATION_PROBLEM_JSON);
+                            var messages = new ReloadableResourceBundleMessageSource();
+                            messages.setBasename("file:src/main/resources/config/i18n/messages");
+                            messages.setDefaultEncoding("UTF-8");
+                            var body = JsonUtils.objectToJson(error.updateAndGetBody(messages, Locale.CHINESE))
+                                    .getBytes(StandardCharsets.UTF_8);
+                            return response.writeWith(
+                                    Mono.just(response.bufferFactory().wrap(body)));
+                        }))
                 .apply(springSecurity())
                 .build()
                 .mutateWith(mockUser("fake-user").password("fake-password").roles("fake-super-role"));
+    }
+
+    @Test
+    void shouldUseMessageCodeForInvalidEmail() {
+        doAnswer(invocation -> {
+                    Errors errors = invocation.getArgument(1);
+                    errors.rejectValue("email", "validation.error.email.pattern");
+                    return null;
+                })
+                .when(validator)
+                .validate(any(), any());
+        webClient
+                .post()
+                .uri("/users/-/send-email-verification-code")
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(Map.of("email", "invalid"))
+                .exchange()
+                .expectStatus()
+                .isBadRequest()
+                .expectBody()
+                .jsonPath("$.detail")
+                .isEqualTo("邮箱格式不正确");
     }
 
     @Nested
@@ -403,6 +448,24 @@ class UserEndpointTest {
                 .isOk();
     }
 
+    @Test
+    void shouldRejectCreateWhenEmailIsBlank() {
+        var userRequest = new UserEndpoint.CreateUserRequest("fake-user", " ", "", "", "", "", "", Map.of(), Set.of());
+
+        webClient
+                .post()
+                .uri("/users")
+                .bodyValue(userRequest)
+                .exchange()
+                .expectStatus()
+                .isBadRequest()
+                .expectBody()
+                .jsonPath("$.detail")
+                .isEqualTo("Email is required");
+
+        verify(userService, never()).createUser(any(User.class), anySet());
+    }
+
     @Nested
     class AvatarUploadTest {
         @Test
@@ -417,8 +480,6 @@ class UserEndpointTest {
             when(environmentFetcher.fetch(SystemSetting.Attachment.GROUP, SystemSetting.Attachment.class))
                     .thenReturn(Mono.fromSupplier(() ->
                             SystemSetting.Attachment.builder().avatar(null).build()));
-            when(environmentFetcher.fetch(SystemSetting.User.GROUP, SystemSetting.User.class))
-                    .thenReturn(Mono.empty());
 
             webClient
                     .post()
@@ -449,8 +510,6 @@ class UserEndpointTest {
             when(environmentFetcher.fetch(SystemSetting.Attachment.GROUP, SystemSetting.Attachment.class))
                     .thenReturn(Mono.fromSupplier(() ->
                             SystemSetting.Attachment.builder().avatar(null).build()));
-            when(environmentFetcher.fetch(SystemSetting.User.GROUP, SystemSetting.User.class))
-                    .thenReturn(Mono.empty());
 
             when(client.get(User.class, "fake-user")).thenReturn(Mono.just(currentUser));
             when(attachmentService.upload(eq("default-policy"), anyString(), anyString(), any(), any(MediaType.class)))
@@ -490,8 +549,6 @@ class UserEndpointTest {
             when(environmentFetcher.fetch(SystemSetting.Attachment.GROUP, SystemSetting.Attachment.class))
                     .thenReturn(Mono.fromSupplier(() ->
                             SystemSetting.Attachment.builder().avatar(null).build()));
-            when(environmentFetcher.fetch(SystemSetting.User.GROUP, SystemSetting.User.class))
-                    .thenReturn(Mono.empty());
 
             when(client.get(User.class, "fake-user")).thenReturn(Mono.just(currentUser));
             when(attachmentService.upload(
@@ -516,7 +573,7 @@ class UserEndpointTest {
         }
 
         @Test
-        void shouldUseFallbackSetting() {
+        void shouldUseAttachmentSetting() {
             var currentUser = createUser("fake-user");
 
             Attachment attachment = new Attachment();
@@ -531,14 +588,11 @@ class UserEndpointTest {
                     .filename("fake-filename.png");
 
             when(environmentFetcher.fetch(SystemSetting.Attachment.GROUP, SystemSetting.Attachment.class))
-                    .thenReturn(Mono.fromSupplier(() ->
-                            SystemSetting.Attachment.builder().avatar(null).build()));
-            when(environmentFetcher.fetch(SystemSetting.User.GROUP, SystemSetting.User.class))
-                    .thenReturn(Mono.fromSupplier(() -> {
-                        var us = new SystemSetting.User();
-                        us.setAvatarPolicy("fake-avatar-policy");
-                        return us;
-                    }));
+                    .thenReturn(Mono.fromSupplier(() -> SystemSetting.Attachment.builder()
+                            .avatar(SystemSetting.Attachment.UploadOptions.builder()
+                                    .policyName("fake-avatar-policy")
+                                    .build())
+                            .build()));
 
             when(client.get(User.class, "fake-user")).thenReturn(Mono.just(currentUser));
             when(attachmentService.upload(

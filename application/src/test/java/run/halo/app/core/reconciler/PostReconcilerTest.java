@@ -1,9 +1,11 @@
 package run.halo.app.core.reconciler;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+import com.google.common.hash.Hashing;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
@@ -97,6 +99,63 @@ class PostReconcilerTest {
     }
 
     @Test
+    void shouldIncludeOwnerInContributorsEvenIfOwnerNeverEditedContent() {
+        // https://github.com/halo-dev/halo/issues/8284
+        String name = "post-A";
+        Post post = TestPost.postV1();
+        post.getSpec().setPublish(false);
+        post.getSpec().setHeadSnapshot("post-A-head-snapshot");
+        post.getSpec().setOwner("test1");
+        when(client.fetch(eq(Post.class), eq(name))).thenReturn(Optional.of(post));
+        when(postService.getContent(
+                        eq(post.getSpec().getReleaseSnapshot()),
+                        eq(post.getSpec().getBaseSnapshot())))
+                .thenReturn(Mono.empty());
+
+        Snapshot snapshotV1 = TestPost.snapshotV1();
+        Snapshot snapshotV2 = TestPost.snapshotV2();
+        snapshotV1.getSpec().setContributors(Set.of("guqing"));
+        snapshotV2.getSpec().setContributors(Set.of("guqing", "zhangsan"));
+        when(client.listAll(eq(Snapshot.class), any(), any())).thenReturn(List.of(snapshotV1, snapshotV2));
+
+        ArgumentCaptor<Post> captor = ArgumentCaptor.forClass(Post.class);
+        postReconciler.reconcile(new Reconciler.Request(name));
+
+        verify(client, times(1)).update(captor.capture());
+
+        Post value = captor.getValue();
+        assertThat(value.getStatus().getContributors()).isEqualTo(List.of("guqing", "test1", "zhangsan"));
+    }
+
+    @Test
+    void shouldNotDuplicateOwnerWhenOwnerAlreadyContributed() {
+        String name = "post-A";
+        Post post = TestPost.postV1();
+        post.getSpec().setPublish(false);
+        post.getSpec().setHeadSnapshot("post-A-head-snapshot");
+        post.getSpec().setOwner("guqing");
+        when(client.fetch(eq(Post.class), eq(name))).thenReturn(Optional.of(post));
+        when(postService.getContent(
+                        eq(post.getSpec().getReleaseSnapshot()),
+                        eq(post.getSpec().getBaseSnapshot())))
+                .thenReturn(Mono.empty());
+
+        Snapshot snapshotV1 = TestPost.snapshotV1();
+        Snapshot snapshotV2 = TestPost.snapshotV2();
+        snapshotV1.getSpec().setContributors(Set.of("guqing"));
+        snapshotV2.getSpec().setContributors(Set.of("guqing", "zhangsan"));
+        when(client.listAll(eq(Snapshot.class), any(), any())).thenReturn(List.of(snapshotV1, snapshotV2));
+
+        ArgumentCaptor<Post> captor = ArgumentCaptor.forClass(Post.class);
+        postReconciler.reconcile(new Reconciler.Request(name));
+
+        verify(client, times(1)).update(captor.capture());
+
+        Post value = captor.getValue();
+        assertThat(value.getStatus().getContributors()).isEqualTo(List.of("guqing", "zhangsan"));
+    }
+
+    @Test
     void shouldGenerateBlankExcerptWhenContentIsNull() {
         var name = "post-A";
         Post post = TestPost.postV1();
@@ -167,6 +226,52 @@ class PostReconcilerTest {
         verify(client, times(1)).update(captor.capture());
         Post value = captor.getValue();
         assertThat(value.getStatus().getExcerpt()).isEqualTo("hello world");
+    }
+
+    @Test
+    void shouldNotSplitSurrogatePairInGeneratedExcerpt() {
+        var prefix = "a".repeat(149);
+        var context = new ExcerptGenerator.Context().setContent(prefix + "📘remaining");
+
+        var excerpt =
+                new PostReconciler.DefaultExcerptGenerator().generate(context).block();
+
+        assertThat(excerpt).isEqualTo(prefix + "📘");
+    }
+
+    @Test
+    void shouldRegenerateMalformedCachedExcerpt() {
+        String name = "post-A";
+        var prefix = "a".repeat(149);
+        var content = "<p>" + prefix + "📘remaining</p>";
+        Post post = TestPost.postV1();
+        post.getSpec().setPublish(true);
+        post.getSpec().setHeadSnapshot("post-A-head-snapshot");
+        post.getSpec().setReleaseSnapshot("post-fake-released-snapshot");
+        post.getMetadata().setAnnotations(new HashMap<>());
+        post.getMetadata()
+                .getAnnotations()
+                .put(Constant.CONTENT_CHECKSUM_ANNO, Hashing.sha256().hashString(content, UTF_8) + ":true");
+        post.getStatusOrDefault().setExcerpt(prefix + "\uD83D");
+
+        when(client.fetch(eq(Post.class), eq(name))).thenReturn(Optional.of(post));
+        when(postService.getContent(
+                        eq(post.getSpec().getReleaseSnapshot()),
+                        eq(post.getSpec().getBaseSnapshot())))
+                .thenReturn(Mono.just(ContentWrapper.builder()
+                        .snapshotName(post.getSpec().getHeadSnapshot())
+                        .raw(prefix + "📘remaining")
+                        .content(content)
+                        .rawType("markdown")
+                        .build()));
+        when(extensionGetter.getEnabledExtension(eq(ExcerptGenerator.class))).thenReturn(Mono.empty());
+        when(client.listAll(eq(Snapshot.class), any(), any())).thenReturn(List.of());
+
+        ArgumentCaptor<Post> captor = ArgumentCaptor.forClass(Post.class);
+        postReconciler.reconcile(new Reconciler.Request(name));
+
+        verify(client).update(captor.capture());
+        assertThat(captor.getValue().getStatus().getExcerpt()).isEqualTo(prefix + "📘");
     }
 
     @Test

@@ -2,7 +2,7 @@
   "openapi": "3.0.1",
   "info": {
     "title": "Halo",
-    "version": "2.26.0-SNAPSHOT"
+    "version": "2.27.0-SNAPSHOT"
   },
   "servers": [
     {
@@ -932,6 +932,58 @@
         ]
       }
     },
+    "/apis/uc.api.halo.run/v1alpha1/users/-": {
+      "get": {
+        "description": "Get current user profile without password hash.",
+        "operationId": "GetMyUser",
+        "responses": {
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UcUserVo"
+                }
+              }
+            },
+            "description": "default response"
+          }
+        },
+        "tags": [
+          "UserV1alpha1Uc"
+        ]
+      }
+    },
+    "/apis/uc.api.halo.run/v1alpha1/users/-/password": {
+      "put": {
+        "description": "Set or change the password of the current user.",
+        "operationId": "ChangeMyPassword",
+        "requestBody": {
+          "content": {
+            "*/*": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeMyPasswordRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UcUserVo"
+                }
+              }
+            },
+            "description": "default response"
+          }
+        },
+        "tags": [
+          "UserV1alpha1Uc"
+        ]
+      }
+    },
     "/apis/uc.api.security.halo.run/v1alpha1/authentications/two-factor/settings": {
       "get": {
         "description": "Get Two-factor authentication settings.",
@@ -1462,6 +1514,37 @@
         ]
       }
     },
+    "/apis/uc.api.storage.halo.run/v1alpha1/attachments/-/match-permalinks": {
+      "post": {
+        "description": "Match URL strings against Attachment permalinks for user center.",
+        "operationId": "MatchAttachmentPermalinksForUc",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachmentPermalinkMatchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "default": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttachmentPermalinkMatchList"
+                }
+              }
+            },
+            "description": "default response"
+          }
+        },
+        "tags": [
+          "AttachmentV1alpha1Uc"
+        ]
+      }
+    },
     "/apis/uc.api.storage.halo.run/v1alpha1/attachments/-/upload": {
       "post": {
         "description": "Upload attachment to user center storage.",
@@ -1655,7 +1738,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -1693,6 +1776,45 @@
             "format": "int64"
           }
         }
+      },
+      "AttachmentPermalinkMatchList": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttachmentPermalinkMatchResult"
+            }
+          }
+        },
+        "description": "Ordered Attachment permalink match results."
+      },
+      "AttachmentPermalinkMatchRequest": {
+        "required": [
+          "urls"
+        ],
+        "type": "object",
+        "properties": {
+          "urls": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "description": "Request payload for matching URL strings against Attachment permalinks."
+      },
+      "AttachmentPermalinkMatchResult": {
+        "type": "object",
+        "properties": {
+          "matched": {
+            "type": "boolean"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "description": "Result for one Attachment permalink match input."
       },
       "AttachmentSpec": {
         "type": "object",
@@ -1865,6 +1987,25 @@
         },
         "description": "Observed category state derived by content reconcilers."
       },
+      "ChangeMyPasswordRequest": {
+        "required": [
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "oldPassword": {
+            "type": "string",
+            "description": "Old password. Required and verified only when the current user has a password; ignored otherwise."
+          },
+          "password": {
+            "maxLength": 257,
+            "minLength": 5,
+            "type": "string",
+            "description": "new password of the current user"
+          }
+        },
+        "description": "Payload for setting or changing the current user\u0027s password."
+      },
       "Condition": {
         "required": [
           "lastTransitionTime",
@@ -1927,8 +2068,8 @@
       },
       "CopyOperation": {
         "required": [
-          "op",
           "from",
+          "op",
           "path"
         ],
         "type": "object",
@@ -2164,7 +2305,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -2279,8 +2420,8 @@
       },
       "MoveOperation": {
         "required": [
-          "op",
           "from",
+          "op",
           "path"
         ],
         "type": "object",
@@ -2348,7 +2489,7 @@
           },
           "hasNext": {
             "type": "boolean",
-            "description": "Indicates whether current page has previous page."
+            "description": "Indicates whether current page has next page."
           },
           "hasPrevious": {
             "type": "boolean",
@@ -2460,6 +2601,7 @@
         "type": "object",
         "properties": {
           "password": {
+            "minLength": 1,
             "type": "string",
             "description": "Current password of the authenticated user."
           },
@@ -3200,10 +3342,12 @@
             "description": "Current TOTP code, required when replacing an existing TOTP authenticator."
           },
           "password": {
+            "minLength": 1,
             "type": "string",
             "description": "Current password of the authenticated user."
           },
           "secret": {
+            "minLength": 1,
             "type": "string",
             "description": "Raw TOTP secret returned by the auth-link endpoint."
           }
@@ -3255,6 +3399,32 @@
           }
         },
         "description": "User-center request payload for uploading from a URL."
+      },
+      "UcUserVo": {
+        "required": [
+          "name",
+          "passwordSet"
+        ],
+        "type": "object",
+        "properties": {
+          "avatar": {
+            "type": "string",
+            "description": "avatar of the current user"
+          },
+          "displayName": {
+            "type": "string",
+            "description": "display name of the current user"
+          },
+          "name": {
+            "type": "string",
+            "description": "username of the current user"
+          },
+          "passwordSet": {
+            "type": "boolean",
+            "description": "whether the current user has a password set"
+          }
+        },
+        "description": "Masked current user profile. The password hash is never exposed."
       },
       "UploadForm": {
         "type": "object",

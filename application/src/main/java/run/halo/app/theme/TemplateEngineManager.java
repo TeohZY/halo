@@ -3,6 +3,7 @@ package run.halo.app.theme;
 import org.pf4j.PluginManager;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.thymeleaf.autoconfigure.ThymeleafProperties;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Component;
 import org.springframework.util.ConcurrentLruCache;
 import org.thymeleaf.dialect.IDialect;
@@ -16,6 +17,7 @@ import run.halo.app.infra.ExternalUrlSupplier;
 import run.halo.app.infra.SystemVersionSupplier;
 import run.halo.app.theme.dialect.HaloProcessorDialect;
 import run.halo.app.theme.engine.HaloTemplateEngine;
+import run.halo.app.theme.engine.PageLayoutTemplateResolver;
 import run.halo.app.theme.engine.PluginClassloaderTemplateResolver;
 import run.halo.app.theme.message.ThemeMessageResolver;
 
@@ -56,6 +58,10 @@ public class TemplateEngineManager {
 
     private final SystemVersionSupplier systemVersionSupplier;
 
+    private final ThemeLayoutCompatibilityChecker themeLayoutCompatibilityChecker;
+
+    private final ResourceLoader resourceLoader;
+
     public TemplateEngineManager(
             ThymeleafProperties thymeleafProperties,
             ExternalUrlSupplier externalUrlSupplier,
@@ -63,7 +69,9 @@ public class TemplateEngineManager {
             ObjectProvider<ITemplateResolver> templateResolvers,
             ObjectProvider<IDialect> dialects,
             ThemeResolver themeResolver,
-            SystemVersionSupplier systemVersionSupplier) {
+            SystemVersionSupplier systemVersionSupplier,
+            ThemeLayoutCompatibilityChecker themeLayoutCompatibilityChecker,
+            ResourceLoader resourceLoader) {
         this.thymeleafProperties = thymeleafProperties;
         this.externalUrlSupplier = externalUrlSupplier;
         this.pluginManager = pluginManager;
@@ -71,6 +79,8 @@ public class TemplateEngineManager {
         this.dialects = dialects;
         this.themeResolver = themeResolver;
         this.systemVersionSupplier = systemVersionSupplier;
+        this.themeLayoutCompatibilityChecker = themeLayoutCompatibilityChecker;
+        this.resourceLoader = resourceLoader;
         engineCache = new ConcurrentLruCache<>(CACHE_SIZE_LIMIT, this::templateEngineGenerator);
     }
 
@@ -101,7 +111,14 @@ public class TemplateEngineManager {
 
     private ISpringWebFluxTemplateEngine templateEngineGenerator(CacheKey cacheKey) {
 
-        var engine = new HaloTemplateEngine(new ThemeMessageResolver(cacheKey.context()));
+        var engine = new HaloTemplateEngine(new ThemeMessageResolver(
+                cacheKey.context(),
+                resourceLoader,
+                thymeleafProperties.getPrefix(),
+                thymeleafProperties.getSuffix(),
+                thymeleafProperties.getEncoding() == null
+                        ? null
+                        : thymeleafProperties.getEncoding().name()));
         engine.setEnableSpringELCompiler(thymeleafProperties.isEnableSpringElCompiler());
         engine.setLinkBuilder(new ThemeLinkBuilder(cacheKey.context(), externalUrlSupplier));
         engine.setRenderHiddenMarkersBeforeCheckboxes(thymeleafProperties.isRenderHiddenMarkersBeforeCheckboxes());
@@ -109,6 +126,8 @@ public class TemplateEngineManager {
         var mainResolver = haloTemplateResolver();
         mainResolver.setPrefix(cacheKey.context().getPath().resolve("templates") + "/");
         engine.addTemplateResolver(mainResolver);
+        var pageLayoutTemplateResolver = createPageLayoutTemplateResolver(cacheKey.context());
+        engine.addTemplateResolver(pageLayoutTemplateResolver);
         var pluginTemplateResolver = createPluginClassloaderTemplateResolver();
         engine.addTemplateResolver(pluginTemplateResolver);
         // replace StandardDialect with SpringStandardDialect
@@ -130,6 +149,19 @@ public class TemplateEngineManager {
         dialects.orderedStream().forEach(engine::addDialect);
 
         return engine;
+    }
+
+    private PageLayoutTemplateResolver createPageLayoutTemplateResolver(ThemeContext themeContext) {
+        var resolver = new PageLayoutTemplateResolver(
+                themeContext.getPath(), themeLayoutCompatibilityChecker.isSupported(themeContext.getPath()));
+        resolver.setPrefix(thymeleafProperties.getPrefix());
+        resolver.setSuffix(thymeleafProperties.getSuffix());
+        resolver.setTemplateMode(thymeleafProperties.getMode());
+        resolver.setOrder(0);
+        if (thymeleafProperties.getEncoding() != null) {
+            resolver.setCharacterEncoding(thymeleafProperties.getEncoding().name());
+        }
+        return resolver;
     }
 
     private PluginClassloaderTemplateResolver createPluginClassloaderTemplateResolver() {
